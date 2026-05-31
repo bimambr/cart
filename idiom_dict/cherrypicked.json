@@ -1,15 +1,114 @@
 {
-    "touch to the quick": {
-        "senses": [
-            "to affect or move deeply; to cause upset or distress to; to influence strongly",
-            "to get to the nub or heart of (a matter); to make a particularly telling remark or observation"
-        ],
-        "source": "https://www.oed.com/dictionary/touch_v?tl=true#1211424970"
-    },
-    "bloodsucking": {
-        "senses": [
-            "taking money, happiness, etc. from people in a way that is unfair or cruel"
-        ],
-        "source": "https://dictionary.cambridge.org/dictionary/english/bloodsucking"
-    }
+  "touch to the quick": {
+    "senses": [
+      "to affect or move deeply; to cause upset or distress to; to influence strongly",
+      "to get to the nub or heart of (a matter); to make a particularly telling remark or observation"
+    ],
+    "source": "https://www.oed.com/dictionary/touch_v?tl=true#1211424970"
+  },
+  "bloodsucking": {
+    "senses": [
+      "taking money, happiness, etc. from people in a way that is unfair or cruel"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/bloodsucking"
+  },
+  "retreat into yourself/your shell/fantasy etc": {
+    "senses": [
+      "to ignore what is happening around you and give all your attention to your private thoughts"
+    ],
+    "source": "https://www.ldoceonline.com/dictionary/retreat-into-yourself-your-shell-fantasy-etc"
+  },
+  "hash something out": {
+    "senses": [
+      "to talk aboutt something with someone else in order to reach agreement about it"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/hash-out"
+  },
+  "tinker's damn": {
+    "senses": [
+      "a minimum amount of degree (as of care)"
+    ],
+    "source": "https://www.merriam-webster.com/dictionary/tinker%27s%20damn"
+  },
+  "not give a tinker's damn": {
+    "senses": [
+      "to not be interested in or worried about something or someone"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/not-give-a-tinker-s-damn"
+  },
+  "roll up the sidewalks": {
+    "senses": [
+      "to close all commercial businesses for the day"
+    ],
+    "source": "https://en.wiktionary.org/wiki/roll_up_the_sidewalks"
+  },
+  "be banging your head against a brick wall": {
+    "senses": [
+      "to do, say, or ask for something repeatedly but to be unable to change a situation"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/learner-english/be-banging-your-head-against-a-brick-wall"
+  },
+  "a hard/tough nut to crack": {
+    "senses": [
+      "a problem that is very difficult to solve or a person who is very difficult to understand"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/hard-tough-nut-to-crack"
+  },
+  "on a tear": {
+    "senses": [
+      "engaged in a continuous, fast-paced procession of actions or events, especially with favorable results",
+      "in or into a protracted state of agitation, fury, or zeal",
+      "binge drinking; engaged in a bout of heavy consumption of alcoholic beverages; on a bender"
+    ]
+  },
+  "spick and span": {
+    "senses": [
+      "(especially of a place) very clean and tidy"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/spick-and-span"
+  },
+  "be a hard/tough act to follow": {
+    "senses": [
+      "to be so good that it is not likely that anyone or anything that comes after will be as good"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/be-a-hard-tough-act-to-follow"
+  },
+  "not say boo": {
+    "senses": [
+      "to not say anything, especially to not complain or protest",
+      "to be very nervous and easily frightened"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/not-say-boo"
+  },
+  "strike oil": {
+    "senses": [
+      "to find petroleum when boring for it",
+      "(figuratively, idiomatic, informal) to have sudden good fortune, especially financially"
+    ],
+    "source": "https://en.wiktionary.org/wiki/strike_oil"
+  },
+  "down for the count": {
+    "senses": [
+      "(of a boxer) knocked down and unable to get up again before the referee counts to 10; often used figuratively"
+    ],
+    "source": "https://www.merriam-webster.com/dictionary/down%20for%20the%20count"
+  },
+  "keep your hand in": {
+    "senses": [
+      "to practise a skill often enough so that you do not lose the skill"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/keep-hand-in"
+  },
+  "make good on something": {
+    "senses": [
+      "to do what you have said you would do"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/make-good-on"
+  },
+  "rattle around": {
+    "senses": [
+      "to live or spend time in a place that is very big; sometimes used figuratively"
+    ],
+    "source": "https://www.merriam-webster.com/dictionary/ra"
+  }
 }
