@@ -7,9 +7,9 @@ if TYPE_CHECKING:
 
 
 class CSVWriter(Protocol):
-    def writerow(self, row: Iterable[Any]) -> Any: ...
+    def writerow(self, row: Iterable[Any], /) -> Any: ...  # pyright: ignore[reportExplicitAny, reportAny]
 
-    def writerows(self, rows: Iterable[Iterable[Any]]) -> None: ...
+    def writerows(self, rows: Iterable[Iterable[Any]], /) -> None: ...  # pyright: ignore[reportExplicitAny]
 
 
 class TranslationAttempt(TypedDict, total=False):
@@ -89,6 +89,20 @@ class Payload(TypedDict, total=False):
     messages: list[dict[str, str]]
     cache_prompt: bool
     grammar: str
+    thinking_budget: Literal["low", "high"]
+
+
+class StreamingResponse(TypedDict, total=False):
+    choices: list["StreamingChoice"]
+
+
+class StreamingChoice(TypedDict, total=False):
+    delta: "Delta"
+
+
+class Delta(TypedDict, total=False):
+    reasoning_content: str
+    content: str
 
 
 @dataclass

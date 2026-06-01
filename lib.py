@@ -29,7 +29,7 @@ import aiohttp
 import torch
 from sentence_transformers import SentenceTransformer, util
 
-from _types import CLIArgs, IdiomEntry, IdiomMatchResult, Payload
+from _types import CLIArgs, IdiomEntry, IdiomMatchResult, Payload, StreamingResponse
 
 LOGGER = logging.getLogger("lib")
 
@@ -52,7 +52,7 @@ IDIOM_MATCH_THRESHOLD = 0.55
 
 if os.path.exists(VECTORISED_DICTIONARY_PATH):
     with open(VECTORISED_DICTIONARY_PATH, "rb") as f:
-        _vector_data = pickle.load(f)
+        _vector_data = pickle.load(f)  # pyright: ignore[reportAny]
         _idiom_embeddings = cast("dict[str, IdiomEntry]", _vector_data["dictionary"])
         _phrases = cast("list[str]", _vector_data["phrases"])
         _dict_embeddings = cast(torch.Tensor, _vector_data["embeddings"])
@@ -77,14 +77,14 @@ async def get_idiom_definitions(excerpt: str) -> list[IdiomMatchResult]:
 
     def _compute_similarities():
         assert _dict_embeddings is not None
-        chunk_embeddings = _embedding_model.encode(chunks, convert_to_tensor=True)
-        cosine_scores = util.cos_sim(chunk_embeddings, _dict_embeddings)
-        match_coords = torch.where(cosine_scores >= IDIOM_MATCH_THRESHOLD)
+        chunk_embeddings = _embedding_model.encode(chunks, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType, reportOptionalMemberAccess]
+        cosine_scores = util.cos_sim(chunk_embeddings, _dict_embeddings)  # pyright: ignore[reportUnknownMemberType]
+        match_coords = torch.where(cosine_scores >= IDIOM_MATCH_THRESHOLD)  # pyright: ignore[reportPrivateImportUsage]
         return match_coords, cosine_scores
 
     match_coordinates, cosine_scores = await asyncio.to_thread(_compute_similarities)
     results: list[IdiomMatchResult] = []
-    found_idiom_keys = set()
+    found_idiom_keys: set[str] = set()
     for chunk_idx, idiom_idx in zip(match_coordinates[0], match_coordinates[1]):
         idiom_key = _phrases[idiom_idx]
 
@@ -109,7 +109,7 @@ async def get_idiom_definitions(excerpt: str) -> list[IdiomMatchResult]:
 
 
 async def stream_response(response: aiohttp.ClientResponse) -> str:
-    json_data = ""
+    json_data: StreamingResponse = {}
     full_response = ""
     chunk = ""
 
@@ -122,7 +122,7 @@ async def stream_response(response: aiohttp.ClientResponse) -> str:
         if data == "[DONE]":
             break
         try:
-            json_data = json.loads(data)
+            json_data = cast(StreamingResponse, json.loads(data))
             delta = json_data.get("choices", [{}])[0].get("delta", {})
             reasoning = delta.get("reasoning_content") or ""
             chunk = (delta.get("content")) or ""
@@ -208,7 +208,7 @@ async def wait(awaitable: Awaitable[T], event: asyncio.Event) -> T:
 
     try:
         for future in pending:
-            future.cancel()
+            _ = future.cancel()
             await future
     except asyncio.CancelledError:
         pass
@@ -221,7 +221,7 @@ async def wait(awaitable: Awaitable[T], event: asyncio.Event) -> T:
 
 def signal_handler(event: asyncio.Event) -> None:
     LOGGER.info("Received CTRL+C")
-    asyncio.get_running_loop().call_soon_threadsafe(lambda: event.set())
+    _ = asyncio.get_running_loop().call_soon_threadsafe(lambda: event.set())
 
 
 def get_next_available_path(path: Path) -> Path:

@@ -757,7 +757,7 @@ async def main():
     ]
 
     event = asyncio.Event()
-    signal.signal(signal.SIGINT, lambda *_args: signal_handler(event))  # type: ignore
+    signal.signal(signal.SIGINT, lambda *_args: signal_handler(event))  # pyright: ignore[reportUnusedCallResult, reportUnknownArgumentType, reportUnknownLambdaType]
 
     async with aiohttp.ClientSession() as client:
         for file_idx, (input_file, output_file) in enumerate(
