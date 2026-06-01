@@ -434,6 +434,63 @@ def parse_rubric(text: str) -> Rubric:
     return rubric
 
 
+async def handle_baseline_state(state: State) -> None:
+    state["next_state"] = ""
+
+    LOGGER.info(
+        "Generating baseline translation for text %d", state["source_text"]["id"]
+    )
+    prompt = f"Translate the following text into {state['source_text']['target_lang']}:\n{state['source_text']['text']}\n\nTranslation:\n"
+    temp = OPTIMIZER_TEMP
+    seed = state["optimizer_seed"]
+    messages = build_messages(state, "", prompt)
+    output = (
+        await run_inference(
+            state["client"],
+            ARGS.endpoint,
+            ARGS.model,
+            temp,
+            seed,
+            timeout=ARGS.timeout,
+            cache_prompt=ARGS.cache_prompt,
+            messages=messages,
+        )
+    ).strip()
+    state["history"].append(
+        {
+            "type": "attempt",
+            "translation": output,
+            "raw_output": output,
+            "prompt": prompt,
+            "seed": seed,
+            "temp": temp,
+        }
+    )
+
+    if csv_writer := state.get("csv_writer"):
+        csv_writer.writerow(
+            (
+                state["source_text"]["id"],
+                state["iteration_id"],
+                state["attempt"],
+                seed,
+                temp,
+                0,
+                0,
+                state["source_text"]["text"],
+                output,
+                {},
+                output,
+                "N/A",
+                time.ctime(),
+                "N/A",
+                prompt,
+                "N/A",
+                "N/A",
+            )
+        )
+
+
 async def handle_optimization_state(state: State) -> None:
     state["attempt"] += 1
     state["next_state"] = "evaluation"
@@ -617,6 +674,7 @@ class FileProcessor:
     )
 
     STATE_HANDLERS: Final = {
+        "baseline": handle_baseline_state,
         "optimization": handle_optimization_state,
         "evaluation": handle_evaluation_state,
     }
@@ -717,7 +775,7 @@ class FileProcessor:
             state = State(
                 iteration_id=iteration_num,
                 source_text=source_text,
-                next_state="optimization",
+                next_state="baseline" if ARGS.baseline else "optimization",
                 max_attempt=ARGS.refinement_iterations,
                 attempt=0,
                 history=[],
@@ -748,7 +806,7 @@ async def main():
     output_files = [
         get_next_available_path(
             root
-            / "evaluator_optimizer_attempts"
+            / ("baseline" if ARGS.baseline else "evaluator_optimizer_attempts")
             / f"{p.stem}_translated_{ARGS.model}_attempt.csv"
         )
         for p in input_files

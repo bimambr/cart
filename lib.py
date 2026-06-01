@@ -303,22 +303,11 @@ def get_parsed_args() -> type[CLIArgs]:
         help="Do not save the output to a file.",
         dest="save_output",
     )
-
-    # TODO: Debug flags. Default behaviour runs a sweep: zero-shot, L1, L2, L3, and L1+L2+L3.
     _ = parser.add_argument(
-        "-1",
+        "--baseline",
         action="store_true",
-        help="Enable first level optimisation: CoT + prompt engineering",
-    )
-    _ = parser.add_argument(
-        "-2",
-        action="store_true",
-        help="Enable second level optimisation: RAG with vectorised idiom definitions",
-    )
-    _ = parser.add_argument(
-        "-3",
-        action="store_true",
-        help="Enable third level optimisation: Agentic loop workflow",
+        default=False,
+        help="Run baseline inference",
     )
 
     parsed = parser.parse_args(namespace=CLIArgs)
@@ -332,4 +321,5 @@ def get_parsed_args() -> type[CLIArgs]:
     LOGGER.info("Omit roles: %s", parsed.omit_roles)
     LOGGER.info("Preserve last N messages: %d", parsed.keep_n_messages)
     LOGGER.info("Save output: %s", parsed.save_output)
+    LOGGER.info("Baseline generation: %s", parsed.baseline)
     return parsed

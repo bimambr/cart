@@ -117,6 +117,7 @@ class CLIArgs:
     omit_roles: bool
     keep_n_messages: int
     save_output: bool
+    baseline: bool
 
 
 class ExampleEntry(TypedDict):
