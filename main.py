@@ -286,8 +286,6 @@ Based on the grades, now provide a revision.
 """.strip()
 
 
-# TODO: implement get_prompt_template(depth: int) -> str
-# and use it in get_examples() as well to reduce repetition
 OPTIMIZER_INIT_PROMPT = f"""
 {format_examples(EXAMPLES, 1)}
 
