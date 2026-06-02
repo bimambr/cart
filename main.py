@@ -227,6 +227,55 @@ Revision: Alih-alih menangani keluhan klien, sang manajer malah lepas tangan dan
             )
         ],
     ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="We went to that new restaurant last night. The service was terrible, so we just left before ordering.",
+        translation="Kami pergi ke restoran baru itu semalam. Layanannya sangat buruk, jadi kami baru saja pergi sebelum memesan.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=2,
+                feedback="The translation uses 'baru saja' for 'just', which implies the action is happening right now. This breaks the timeline established by 'semalam' (last night).",
+            ),
+            acceptability=RubricEntry(
+                score=2,
+                feedback="The use of 'baru saja' creates a confusing temporal clash for the reader, making the phrasing unnatural for a recounting of a past event.",
+            ),
+            readability=RubricEntry(
+                score=3,
+                feedback="The sentence is grammatically standard, despite the logical error.",
+            ),
+        ),
+        revision="""Planned Changes:
+- The translation incorrectly maps 'just' to 'baru saja' (recently), which contradicts the 'semalam' timeframe. In this context, 'just' implies taking a simple or immediate alternative action. I will replace 'baru saja pergi' with 'langsung pergi saja' to maintain the correct past narrative flow.
+
+Revision: Kami pergi ke restoran baru itu semalam. Layanannya sangat buruk, jadi kami langsung pergi saja sebelum memesan.""",
+        known_idioms=[],
+    ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="I was going to tell you the truth, but I panicked.",
+        translation="Aku akan mengatakan yang sebenarnya padamu, tapi aku panik.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=2,
+                feedback="The English phrase 'was going to' expresses a past intention that was not fulfilled. Translating it simply as 'akan' without a temporal marker makes it sound like a general or future statement. The contrasting past outcome ('panicked') also lacks emphasis.",
+            ),
+            acceptability=RubricEntry(
+                score=2,
+                feedback="While grammatically acceptable, it lacks the natural narrative flow a native speaker uses to express a failed past intention followed by an unexpected reaction.",
+            ),
+            readability=RubricEntry(
+                score=3, feedback="The sentence is straightforward and readable."
+            ),
+        ),
+        revision="""Planned Changes:
+- The source text relies on 'was going to' and 'panicked' to contrast a past intention with an unexpected outcome. To map this past tense dynamic naturally into Indonesian, I will add 'tadinya' (initially) to anchor the unfulfilled plan in the past, and 'malah' (instead) to emphasize the contrary reaction of panicking.
+
+Revision: Tadinya aku mau mengatakan yang sebenarnya padamu, tapi aku malah panik.""",
+        known_idioms=[],
+    ),
 ]
 
 
