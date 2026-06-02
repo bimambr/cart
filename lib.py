@@ -65,14 +65,22 @@ else:
     _embedding_model = None
 
 
+def _get_sliding_windows(
+    text: str, min_window: int = 2, max_window: int = 6
+) -> list[str]:
+    words = re.findall(r"\b\w+\b", text.lower())
+    windows: list[str] = []
+    for size in range(min_window, max_window + 1):
+        for i in range(len(words) - size + 1):
+            windows.append(" ".join(words[i : i + size]))
+    return list(set(windows))
+
+
 async def get_idiom_definitions(excerpt: str) -> list[IdiomMatchResult]:
     if not _idiom_embeddings or _dict_embeddings is None or _embedding_model is None:
         return []
 
-    raw_chunks = re.split(r"[,.;:!?\n]", excerpt)
-    chunks = [chunk.strip() for chunk in raw_chunks if len(chunk.strip()) > 2]
-
-    if not chunks:
+    if not (chunks := _get_sliding_windows(excerpt)):
         return []
 
     def _compute_similarities():
