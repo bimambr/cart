@@ -842,7 +842,9 @@ class FileProcessor:
                 "id": text_idx + 1,
                 "external_knowledge": input_json.get("external_knowledge", [])
                 + text.get("external_knowledge", []),
-                "idiom_matches": await get_idiom_definitions(text["content"]),
+                "idiom_matches": []
+                if ARGS.baseline
+                else await get_idiom_definitions(text["content"]),
             }
 
             await self._process_text(source_text)
