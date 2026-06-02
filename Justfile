@@ -25,4 +25,4 @@ run input_file="corpus/literature.json":
     python main.py --input "{{input_file}}" --timeout 0 --iterations 1 --refinement-iterations 3 --preserve-last-n-messages 0 --cache-prompt
 
 vectorise:
-    python vectorise_dictionary.py
+    python vectorise.py
