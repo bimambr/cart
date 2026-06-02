@@ -43,7 +43,7 @@ from _types import (
 )
 from lib import (
     Bail,
-    get_idiom_definitions,
+    Embedder,
     get_next_available_path,
     get_parsed_args,
     run_inference,
@@ -768,6 +768,7 @@ class FileProcessor:
         id: int,
         input_file: Path,
         output_file: Path,
+        embedder: Embedder,
         client: aiohttp.ClientSession,
     ) -> None:
         self.id: int = id
@@ -779,6 +780,7 @@ class FileProcessor:
         self.log_file: TextIOWrapper | None = None
 
         self.client: aiohttp.ClientSession = client
+        self.embedder: Embedder = embedder
 
     def open(self) -> None:
         if not ARGS.save_output:
@@ -827,6 +829,9 @@ class FileProcessor:
             Corpus, json.loads(self.input_file.read_text("utf-8").strip())
         )
 
+        if not ARGS.baseline:
+            self.embedder.load_vectors()
+
         for text_idx, text in enumerate(input_json["texts"]):
             LOGGER.info(
                 "--- Translating text %d out of %d ---",
@@ -842,9 +847,9 @@ class FileProcessor:
                 "id": text_idx + 1,
                 "external_knowledge": input_json.get("external_knowledge", [])
                 + text.get("external_knowledge", []),
-                "idiom_matches": []
-                if ARGS.baseline
-                else await get_idiom_definitions(text["content"]),
+                "idiom_matches": await self.embedder.get_idiom_definitions(
+                    text["content"]
+                ),
             }
 
             await self._process_text(source_text)
@@ -890,6 +895,13 @@ class FileProcessor:
 
 async def main():
     LOGGER.info("Starting translation experiment...")
+
+    embedder = Embedder(ARGS.embedding_model)
+
+    if ARGS.vectorise:
+        embedder.generate_vectors()
+        exit(0)
+
     input_files = [Path(p) for p in ARGS.input.split(",")]
     root = Path(__file__).parent
     output_files = [
@@ -914,6 +926,7 @@ async def main():
                     input_file=input_file,
                     output_file=output_file,
                     client=client,
+                    embedder=embedder,
                 ) as processor:
                     await wait(
                         processor.process(),

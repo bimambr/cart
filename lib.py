@@ -16,6 +16,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
 import asyncio
+from functools import partial
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ import pickle
 import re
 from collections.abc import Awaitable
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Protocol, TypeGuard, TypeVar, cast, final
 
 import aiohttp
 import torch
@@ -41,6 +42,7 @@ class Bail(Exception): ...
 
 ENDPOINT = "http://localhost:8127/v1/chat/completions"
 MODEL_NAME = "gemma-4-E2B-it-GGUF"
+EMBED_MODEL_NAME = "./all-MiniLM-L6-v2"
 DEFAULT_N_ITERATIONS = 5
 MAX_N_ITERATIONS = 10
 DEFAULT_REFINEMENT_ITERATIONS = 3
@@ -49,70 +51,169 @@ TIMEOUT = 240
 VECTORISED_DICTIONARY_PATH = "vectorised_dict.pkl"
 IDIOM_MATCH_THRESHOLD = 0.55
 
-if os.path.exists(VECTORISED_DICTIONARY_PATH):
-    with open(VECTORISED_DICTIONARY_PATH, "rb") as f:
-        _vector_data = pickle.load(f)  # pyright: ignore[reportAny]
-        _idiom_embeddings = cast("dict[str, IdiomEntry]", _vector_data["dictionary"])
-        _phrases = cast("list[str]", _vector_data["phrases"])
-        _dict_embeddings = cast(torch.Tensor, _vector_data["embeddings"])
 
-    _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-else:
-    _idiom_embeddings: dict[str, IdiomEntry] = {}
-    _phrases: list[str] = []
-    _dict_embeddings = None
-    _embedding_model = None
+class LoadedEmbedder(Protocol):
+    model: str
+    idiom_embeddings: dict[str, IdiomEntry]
+    phrases: list[str]
+    dict_embeddings: torch.Tensor
+    embedding_model: SentenceTransformer
+
+    def compute_similarities(
+        self, chunks: list[str]
+    ) -> tuple[tuple[torch.Tensor, ...], torch.Tensor]: ...
 
 
-def _get_sliding_windows(
-    text: str, min_window: int = 2, max_window: int = 6
-) -> list[str]:
-    words = re.findall(r"\b\w+\b", text.lower())
-    windows: list[str] = []
-    for size in range(min_window, max_window + 1):
-        for i in range(len(words) - size + 1):
-            windows.append(" ".join(words[i : i + size]))
-    return list(set(windows))
+@final
+class Embedder:
+    def __init__(self, model: str) -> None:
+        self.model = model
 
+        self.idiom_embeddings: dict[str, IdiomEntry] | None = None
+        self.phrases: list[str] | None = None
+        self.dict_embeddings: torch.Tensor | None = None
+        self.embedding_model: SentenceTransformer | None = None
 
-async def get_idiom_definitions(excerpt: str) -> list[IdiomMatchResult]:
-    if not _idiom_embeddings or _dict_embeddings is None or _embedding_model is None:
-        return []
+    @staticmethod
+    def is_loaded(obj: "Embedder") -> TypeGuard[LoadedEmbedder]:
+        return (
+            obj.idiom_embeddings is not None
+            and obj.phrases is not None
+            and obj.dict_embeddings is not None
+            and obj.embedding_model is not None
+        )
 
-    if not (chunks := _get_sliding_windows(excerpt)):
-        return []
+    def load_vectors(self) -> None:
+        if not os.path.exists(VECTORISED_DICTIONARY_PATH):
+            return
 
-    def _compute_similarities():
-        assert _dict_embeddings is not None
-        chunk_embeddings = _embedding_model.encode(chunks, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType, reportOptionalMemberAccess]
-        cosine_scores = util.cos_sim(chunk_embeddings, _dict_embeddings)  # pyright: ignore[reportUnknownMemberType]
+        if Embedder.is_loaded(self):
+            return
+
+        with open(VECTORISED_DICTIONARY_PATH, "rb") as f:
+            _vector_data = pickle.load(f)  # pyright: ignore[reportAny]
+            self.idiom_embeddings = cast(
+                "dict[str, IdiomEntry]", _vector_data["dictionary"]
+            )
+            self.phrases = cast("list[str]", _vector_data["phrases"])
+            self.dict_embeddings = cast(torch.Tensor, _vector_data["embeddings"])
+
+        self.embedding_model = SentenceTransformer(self.model)
+
+    @staticmethod
+    def _get_sliding_windows(
+        text: str, window_size: int = 6, overlap: int = 1
+    ) -> list[str]:
+        words = re.findall(r"\b\w+\b", text.lower())
+        step = max(1, window_size - overlap)
+        windows: list[str] = []
+        for i in range(0, len(words), step):
+            chunk = words[i : i + window_size]
+            if len(chunk) > overlap:
+                windows.append(" ".join(chunk))
+        return list(set(windows))
+
+    def compute_similarities(
+        self, chunks: list[str]
+    ) -> tuple[tuple[torch.Tensor, ...], torch.Tensor]:
+        assert Embedder.is_loaded(self)
+        chunk_embeddings = self.embedding_model.encode(chunks, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType]
+        cosine_scores = util.cos_sim(chunk_embeddings, self.dict_embeddings)  # pyright: ignore[reportUnknownMemberType]
         match_coords = torch.where(cosine_scores >= IDIOM_MATCH_THRESHOLD)  # pyright: ignore[reportPrivateImportUsage]
         return match_coords, cosine_scores
 
-    match_coordinates, cosine_scores = await asyncio.to_thread(_compute_similarities)
-    results: list[IdiomMatchResult] = []
-    found_idiom_keys: set[str] = set()
-    for chunk_idx, idiom_idx in zip(match_coordinates[0], match_coordinates[1]):
-        idiom_key = _phrases[idiom_idx]
+    async def get_idiom_definitions(self, excerpt: str) -> list[IdiomMatchResult]:
+        if not Embedder.is_loaded(self):
+            return []
 
-        if idiom_key not in found_idiom_keys:
-            score = cosine_scores[chunk_idx][idiom_idx].item()
-            entry = _idiom_embeddings[idiom_key]
+        if not (chunks := Embedder._get_sliding_windows(excerpt)):
+            return []
 
-            results.append(
+        match_coordinates, cosine_scores = await asyncio.to_thread(
+            partial(self.compute_similarities, chunks)
+        )
+        results: list[IdiomMatchResult] = []
+        found_idiom_keys: set[str] = set()
+        for chunk_idx, idiom_idx in zip(match_coordinates[0], match_coordinates[1]):
+            idiom_key = self.phrases[idiom_idx]
+
+            if idiom_key not in found_idiom_keys:
+                score = cosine_scores[chunk_idx][idiom_idx].item()
+                entry = self.idiom_embeddings[idiom_key]
+
+                results.append(
+                    {
+                        "idiom": idiom_key,
+                        "senses": entry.get("senses", []),
+                        "translations": entry.get("translations", {}),
+                        "matched_chunk": chunks[chunk_idx],
+                        "score": round(score, 3),
+                    }
+                )
+                found_idiom_keys.add(idiom_key)
+
+        results.sort(key=lambda x: x["score"], reverse=True)
+        LOGGER.info("Found idiom matches: \n%s", results)
+        return results
+
+    def generate_vectors(self) -> None:
+        normalised_dict: dict[str, IdiomEntry] = {}
+
+        with open("idiom_dict/cherrypicked.json", "r", encoding="utf-8") as f:
+            json_data = json.load(f)  # pyright: ignore[reportAny]
+            for phrase, data in json_data.items():  # pyright: ignore[reportAny]
+                normalised_dict[phrase] = IdiomEntry(
+                    idiom=cast(str, phrase),
+                    senses=data.get("senses", []),  # pyright: ignore[reportAny]
+                    translations={},
+                )
+
+        with open("idiom_dict/idiomKB.json", "r", encoding="utf-8") as f:
+            json_data = json.load(f)  # pyright: ignore[reportAny]
+            for entry in json_data:  # pyright: ignore[reportAny]
+                phrase = entry.get("idiom")  # pyright: ignore[reportAny]
+                en_meaning = entry.get("en_meaning")  # pyright: ignore[reportAny]
+
+                assert isinstance(phrase, str)
+                assert isinstance(en_meaning, str)
+
+                translations: dict[str, str] = {}
+                if "zh_meaning" in entry:
+                    translations["zh"] = entry["zh_meaning"]
+                if "ja_meaning" in entry:
+                    translations["ja"] = entry["ja_meaning"]
+
+                if phrase in normalised_dict:
+                    if (
+                        en_meaning
+                        and en_meaning not in normalised_dict[phrase]["senses"]
+                    ):
+                        normalised_dict[phrase]["senses"].append(en_meaning)
+                    normalised_dict[phrase]["translations"].update(translations)
+                else:
+                    normalised_dict[phrase] = IdiomEntry(
+                        idiom=phrase,
+                        senses=[en_meaning] if en_meaning else [],
+                        translations=translations,
+                    )
+
+        phrases = list(normalised_dict.keys())
+        LOGGER.info("Loading model and computing %d embeddings", len(normalised_dict))
+        model = SentenceTransformer(self.model)
+        embeddings_tensor = model.encode(phrases, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType]
+
+        with open(VECTORISED_DICTIONARY_PATH, "wb") as f:
+            pickle.dump(
                 {
-                    "idiom": idiom_key,
-                    "senses": entry.get("senses", []),
-                    "translations": entry.get("translations", {}),
-                    "matched_chunk": chunks[chunk_idx],
-                    "score": round(score, 3),
-                }
+                    "dictionary": normalised_dict,
+                    "phrases": phrases,
+                    "embeddings": embeddings_tensor,
+                },
+                f,
+                protocol=pickle.HIGHEST_PROTOCOL,
             )
-            found_idiom_keys.add(idiom_key)
 
-    results.sort(key=lambda x: x["score"], reverse=True)
-    LOGGER.info("Found idiom matches: \n%s", results)
-    return results
+        LOGGER.info("Saved to %s", VECTORISED_DICTIONARY_PATH)
 
 
 async def stream_response(response: aiohttp.ClientResponse) -> str:
@@ -262,6 +363,11 @@ def get_parsed_args() -> type[CLIArgs]:
         help=f"Model name to use (default: {MODEL_NAME})",
     )
     _ = parser.add_argument(
+        "--embedding-model",
+        default=EMBED_MODEL_NAME,
+        help=f"Embedding model to use (default: {EMBED_MODEL_NAME})",
+    )
+    _ = parser.add_argument(
         "--iterations",
         type=lambda x: min(int(x), MAX_N_ITERATIONS),
         default=DEFAULT_N_ITERATIONS,
@@ -316,10 +422,17 @@ def get_parsed_args() -> type[CLIArgs]:
         default=False,
         help="Run baseline inference",
     )
+    _ = parser.add_argument(
+        "--vectorise",
+        action="store_true",
+        default=False,
+        help="Generate idiom vectors",
+    )
 
     parsed = parser.parse_args(namespace=CLIArgs)
     LOGGER.info("Using endpoint: %s", parsed.endpoint)
     LOGGER.info("Model: %s", parsed.model)
+    LOGGER.info("Embedding model: %s", parsed.embedding_model)
     LOGGER.info("Iterations per seed: %d", parsed.iterations)
     LOGGER.info("Refinement iterations: %d", parsed.refinement_iterations)
     LOGGER.info("Input files: %s", parsed.input)
@@ -329,4 +442,5 @@ def get_parsed_args() -> type[CLIArgs]:
     LOGGER.info("Preserve last N messages: %d", parsed.keep_n_messages)
     LOGGER.info("Save output: %s", parsed.save_output)
     LOGGER.info("Baseline generation: %s", parsed.baseline)
+    LOGGER.info("Generating vectors: %s", parsed.vectorise)
     return parsed

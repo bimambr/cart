@@ -109,6 +109,7 @@ class Delta(TypedDict, total=False):
 class CLIArgs:
     endpoint: str
     model: str
+    embedding_model: str
     iterations: int
     input: str
     timeout: int
@@ -118,6 +119,7 @@ class CLIArgs:
     keep_n_messages: int
     save_output: bool
     baseline: bool
+    vectorise: bool
 
 
 class ExampleEntry(TypedDict):

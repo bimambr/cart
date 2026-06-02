@@ -9,5 +9,6 @@
 # `nix develop --profile ./.nix`
 .nix*
 
-# serialised embeddings
+# embeddings
+all-MiniLM-L6-v2/
 *.pkl
