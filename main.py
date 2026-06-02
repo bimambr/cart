@@ -879,8 +879,11 @@ class FileProcessor:
                 await asyncio.sleep(0.1)
 
             if self.log_file:
+                loggable_state = {
+                    k: v for k, v in state.items() if k not in ("client", "csv_writer")
+                }
                 _ = self.log_file.write(
-                    json.dumps(state["history"], ensure_ascii=False, indent=4) + "\n"
+                    json.dumps(loggable_state, ensure_ascii=False) + "\n"
                 )
                 self.log_file.flush()
 
