@@ -92,8 +92,8 @@ Revision: Dia akhirnya membocorkan rahasia tentang pesta kejutan itu, merusak se
             IdiomEntry(
                 idiom="spill the beans",
                 senses=[
-                    "To reveal a secret.",
-                    "To disclose information prematurely.",
+                    "to reveal a secret.",
+                    "to disclose information prematurely.",
                 ],
                 translations={},
             )
@@ -121,8 +121,8 @@ Revision: Dia akhirnya membocorkan rahasia tentang pesta kejutan itu, merusak se
             IdiomEntry(
                 idiom="hit the nail on the head",
                 senses=[
-                    "To describe exactly what is causing a situation or problem.",
-                    "To do or say something exactly right.",
+                    "to describe exactly what is causing a situation or problem.",
+                    "to do or say something exactly right.",
                 ],
                 translations={},
             )
@@ -154,7 +154,7 @@ Revision: Ketika dia mendengar kabar itu, dia merasa tidak enak badan dan memutu
         known_idioms=[
             IdiomEntry(
                 idiom="under the weather",
-                senses=["Feeling ill.", "Slightly unwell or in low spirits."],
+                senses=["feeling ill.", "slightly unwell or in low spirits."],
                 translations={},
             )
         ],
@@ -187,8 +187,8 @@ Revision: Dia tanpa sengaja membocorkan rahasia saat makan malam, dan semua oran
             IdiomEntry(
                 idiom="let the cat out of the bag",
                 senses=[
-                    "To accidentally reveal a secret.",
-                    "To disclose something that was meant to be hidden.",
+                    "to accidentally reveal a secret.",
+                    "to disclose something that was meant to be hidden.",
                 ],
                 translations={},
             )
