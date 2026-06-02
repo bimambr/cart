@@ -1,3 +1,5 @@
+set shell := ["bash", "-c"]
+
 model_url := "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q8_0.gguf?download=true"
 model_file := "gemma-4-E2B-it-Q8_0.gguf"
 embed_model_file := "all-MiniLM-L6-v2"

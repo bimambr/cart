@@ -51,9 +51,9 @@ python311 -m pip install aiohttp
 5. There are two options to get the model:
 
   - Download the model directly: Download the [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF) model from Hugging Face and place it in the root directory of this project (we use specifically the Q8_0 quant).
-  - Or, install `just` and `aria2` for runner and model downloader:
+  - Or, install `just`, `aria2`, and `bash` for runner and model downloader:
 ```sh
-scoop install just aria2
+scoop install just aria2 git
 
 # Run this to download the model
 just setup
