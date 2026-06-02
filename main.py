@@ -380,9 +380,11 @@ Grade the translation based on a 3-point rubric: accuracy, acceptability, and re
 Grades:
 {{GRADES}}
 
-Based on the grades, now provide a revision.
-
+Based on the grades, provide a revision. You MUST format your response exactly as follows:
 Planned Changes:
+- <your reasoning>
+
+Revision: <your final translated string>
 """.strip()
 
 
