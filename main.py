@@ -194,6 +194,39 @@ Revision: Dia tanpa sengaja membocorkan rahasia saat makan malam, dan semua oran
             )
         ],
     ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="Instead of addressing the client's complaints, the manager just passed the buck to the marketing team.",
+        translation="Alih-alih menangani keluhan klien, sang manajer malah mengoper uang ke tim pemasaran.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=1,
+                feedback="The idiom 'passed the buck' means to shift responsibility, but it was translated literally as 'mengoper uang' (passing money), losing the intended meaning entirely.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="The phrase 'mengoper uang' is nonsensical in the context of handling client complaints.",
+            ),
+            readability=RubricEntry(
+                score=3,
+                feedback="The sentence structure itself is readable, despite the severe semantic error.",
+            ),
+        ),
+        revision="""Planned Changes:
+- The literal translation 'mengoper uang' misinterprets the idiom and makes no sense in context. I will replace it with the culturally appropriate and natural Indonesian phrasing 'lepas tangan dan melimpahkannya' to accurately convey the abdication of responsibility.
+
+Revision: Alih-alih menangani keluhan klien, sang manajer malah lepas tangan dan melimpahkannya ke tim pemasaran.""",
+        known_idioms=[
+            IdiomEntry(
+                idiom="pass the buck",
+                senses=[
+                    "to shift the responsibility or blame to someone else.",
+                ],
+                translations={},
+            )
+        ],
+    ),
 ]
 
 
