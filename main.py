@@ -839,7 +839,7 @@ async def main():
     output_files = [
         get_next_available_path(
             root
-            / ("baseline" if ARGS.baseline else "evaluator_optimizer_attempts")
+            / ("baseline_attempts" if ARGS.baseline else "evaluator_optimizer_attempts")
             / f"{p.stem}_translated_{ARGS.model}_attempt.csv"
         )
         for p in input_files

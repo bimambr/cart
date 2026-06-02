@@ -3,7 +3,7 @@
 /*.xls
 *.gguf
 *.pyc
-evaluator_optimizer_attempts/
+*_attempts/
 
 # Nix
 # `nix develop --profile ./.nix`
