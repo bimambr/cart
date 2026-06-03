@@ -871,6 +871,9 @@ class FileProcessor:
                 len(input_json["texts"]),
             )
 
+            if ARGS.match_idioms_only:
+                LOGGER.info("Source text: %s", text["content"])
+
             source_text: SourceTextEntry = {
                 "source_lang": input_json["source_lang"],
                 "target_lang": input_json["target_lang"],
