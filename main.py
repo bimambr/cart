@@ -520,6 +520,7 @@ def parse_rubric(text: str) -> Rubric:
 
 async def handle_baseline_state(state: State) -> None:
     state["next_state"] = ""
+    state["attempt"] += 1
 
     LOGGER.info(
         "Generating baseline translation for text %d", state["source_text"]["id"]
