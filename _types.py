@@ -72,6 +72,7 @@ class TextEntry(TypedDict):
 
 class IdiomEntry(TypedDict):
     idiom: str
+    master_key: str
     senses: list[str]
     translations: dict[str, str]
 

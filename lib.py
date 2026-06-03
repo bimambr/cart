@@ -16,13 +16,13 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
 import asyncio
-from functools import partial
 import json
 import logging
 import os
 import pickle
 import re
 from collections.abc import Awaitable
+from itertools import product
 from pathlib import Path
 from typing import Protocol, TypeGuard, TypeVar, cast, final
 
@@ -49,19 +49,19 @@ DEFAULT_REFINEMENT_ITERATIONS = 3
 MAX_REFINEMENT_ITERATIONS = 5
 TIMEOUT = 240
 VECTORISED_DICTIONARY_PATH = "vectorised_dict.pkl"
-IDIOM_MATCH_THRESHOLD = 0.55
 
 
 class LoadedEmbedder(Protocol):
     model: str
     idiom_embeddings: dict[str, IdiomEntry]
     phrases: list[str]
+    phrase_lens: torch.Tensor
     dict_embeddings: torch.Tensor
     embedding_model: SentenceTransformer
 
     def compute_similarities(
         self, chunks: list[str]
-    ) -> tuple[tuple[torch.Tensor, ...], torch.Tensor]: ...
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]: ...
 
 
 @final
@@ -71,6 +71,7 @@ class Embedder:
 
         self.idiom_embeddings: dict[str, IdiomEntry] | None = None
         self.phrases: list[str] | None = None
+        self.phrase_lens: torch.Tensor | None = None
         self.dict_embeddings: torch.Tensor | None = None
         self.embedding_model: SentenceTransformer | None = None
 
@@ -97,64 +98,110 @@ class Embedder:
             )
             self.phrases = cast("list[str]", _vector_data["phrases"])
             self.dict_embeddings = cast(torch.Tensor, _vector_data["embeddings"])
+            self.phrase_lens = torch.tensor(  # pyright: ignore[reportPrivateImportUsage]
+                [len(p.split()) for p in self.phrases],
+                dtype=torch.long,  # pyright: ignore[reportPrivateImportUsage]
+            )
 
         self.embedding_model = SentenceTransformer(self.model)
 
     @staticmethod
-    def _get_sliding_windows(
-        text: str, window_size: int = 6, overlap: int = 1
+    def _get_n_gram_windows(
+        text: str, min_size: int = 2, max_size: int = 12
     ) -> list[str]:
-        words = re.findall(r"\b\w+\b", text.lower())
-        step = max(1, window_size - overlap)
-        windows: list[str] = []
-        for i in range(0, len(words), step):
-            chunk = words[i : i + window_size]
-            if len(chunk) > overlap:
-                windows.append(" ".join(chunk))
-        return list(set(windows))
+        words = text.lower().split()
+        windows: set[str] = set()
+
+        for w_size in range(min_size, max_size + 1):
+            for i in range(len(words) - w_size + 1):
+                chunk = words[i : i + w_size]
+                windows.add(" ".join(chunk))
+
+        return list(windows)
 
     def compute_similarities(
         self, chunks: list[str]
-    ) -> tuple[tuple[torch.Tensor, ...], torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         assert Embedder.is_loaded(self)
         chunk_embeddings = self.embedding_model.encode(chunks, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType]
         cosine_scores = util.cos_sim(chunk_embeddings, self.dict_embeddings)  # pyright: ignore[reportUnknownMemberType]
-        match_coords = torch.where(cosine_scores >= IDIOM_MATCH_THRESHOLD)  # pyright: ignore[reportPrivateImportUsage]
-        return match_coords, cosine_scores
+        device = cosine_scores.device
+        chunk_lens = torch.tensor(  # pyright: ignore[reportPrivateImportUsage]
+            [len(c.split()) for c in chunks],
+            dtype=torch.long,  # pyright: ignore[reportPrivateImportUsage]
+            device=device,
+        )
+        min_lens = torch.minimum(  # pyright: ignore[reportPrivateImportUsage]
+            chunk_lens.unsqueeze(1), self.phrase_lens.unsqueeze(0).to(device)
+        )
+        threshold_lookup = torch.tensor(  # pyright: ignore[reportPrivateImportUsage]
+            [1.0, 1.0, 0.8, 0.8, 0.7, 0.6, 0.55],
+            dtype=torch.float32,  # pyright: ignore[reportPrivateImportUsage]
+            device=device,
+        )
+        clamped_lens = torch.clamp(min_lens, max=6)  # pyright: ignore[reportPrivateImportUsage]
+        dynamic_thresholds = threshold_lookup[clamped_lens]
+        match_coords = torch.where(cosine_scores >= dynamic_thresholds)  # pyright: ignore[reportPrivateImportUsage]
+        chunk_indices, phrase_indices = match_coords
+        scores = cosine_scores[chunk_indices, phrase_indices]
+        sort_idx = torch.argsort(scores, descending=True)  # pyright: ignore[reportPrivateImportUsage]
+        return chunk_indices[sort_idx], phrase_indices[sort_idx], scores[sort_idx]
 
     async def get_idiom_definitions(self, excerpt: str) -> list[IdiomMatchResult]:
         if not Embedder.is_loaded(self):
             return []
 
-        if not (chunks := Embedder._get_sliding_windows(excerpt)):
+        if not (chunks := Embedder._get_n_gram_windows(excerpt)):
             return []
 
-        match_coordinates, cosine_scores = await asyncio.to_thread(
-            partial(self.compute_similarities, chunks)
+        chunk_indices, phrase_indices, scores = await asyncio.to_thread(
+            self.compute_similarities, chunks
         )
+
         results: list[IdiomMatchResult] = []
-        found_idiom_keys: set[str] = set()
-        for chunk_idx, idiom_idx in zip(match_coordinates[0], match_coordinates[1]):
-            idiom_key = self.phrases[idiom_idx]
+        found_master_keys: set[str] = set()
 
-            if idiom_key not in found_idiom_keys:
-                score = cosine_scores[chunk_idx][idiom_idx].item()
-                entry = self.idiom_embeddings[idiom_key]
+        c_vals: list[int] = chunk_indices.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        p_vals: list[int] = phrase_indices.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        s_vals: list[float] = scores.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
 
-                results.append(
-                    {
-                        "idiom": idiom_key,
-                        "senses": entry.get("senses", []),
-                        "translations": entry.get("translations", {}),
-                        "matched_chunk": chunks[chunk_idx],
-                        "score": round(score, 3),
-                    }
+        for chunk_idx, phrase_idx, score in zip(c_vals, p_vals, s_vals):
+            idiom_key = self.phrases[phrase_idx]
+            entry = self.idiom_embeddings[idiom_key]
+            master_key = entry["master_key"]
+
+            if master_key in found_master_keys:
+                continue
+
+            results.append(
+                IdiomMatchResult(
+                    idiom=idiom_key,
+                    senses=entry.get("senses", []),
+                    translations=entry.get("translations", {}),
+                    matched_chunk=chunks[chunk_idx],
+                    score=round(score, 3),
+                    master_key=master_key,
                 )
-                found_idiom_keys.add(idiom_key)
+            )
+            found_master_keys.add(master_key)
 
         results.sort(key=lambda x: x["score"], reverse=True)
-        LOGGER.info("Found idiom matches: \n%s", results)
+        LOGGER.info("Found idiom matches: \n%s", json.dumps(results, indent=4))
         return results
+
+    @staticmethod
+    def _expand_phrase(phrase: str) -> list[str]:
+        tokens = phrase.split()
+        options = [
+            option
+            for token in tokens
+            if (
+                option := [token[1:-1], ""]
+                if token.startswith("(") and token.endswith(")")
+                else token.split("/")
+            )
+        ]
+        return [" ".join(w for w in c if w) for c in product(*options)]
 
     def generate_vectors(self) -> None:
         normalised_dict: dict[str, IdiomEntry] = {}
@@ -162,10 +209,12 @@ class Embedder:
         with open("idiom_dict/cherrypicked.json", "r", encoding="utf-8") as f:
             json_data = json.load(f)  # pyright: ignore[reportAny]
             for phrase, data in json_data.items():  # pyright: ignore[reportAny]
+                assert isinstance(phrase, str)
                 normalised_dict[phrase] = IdiomEntry(
-                    idiom=cast(str, phrase),
+                    idiom=phrase,
                     senses=data.get("senses", []),  # pyright: ignore[reportAny]
                     translations={},
+                    master_key=phrase,
                 )
 
         with open("idiom_dict/idiomKB.json", "r", encoding="utf-8") as f:
@@ -195,7 +244,15 @@ class Embedder:
                         idiom=phrase,
                         senses=[en_meaning] if en_meaning else [],
                         translations=translations,
+                        master_key=phrase,
                     )
+
+        for k, v in {**normalised_dict}.items():
+            for variant in self._expand_phrase(k):
+                if variant in normalised_dict:
+                    continue
+
+                normalised_dict[variant] = {**v, "idiom": variant}
 
         phrases = list(normalised_dict.keys())
         LOGGER.info("Loading model and computing %d embeddings", len(normalised_dict))
