@@ -982,10 +982,11 @@ async def main():
                 LOGGER.info("Experiment interrupted by user.")
                 return
 
-    LOGGER.info(
-        "Experiment complete. Results saved to %s.",
-        ", ".join([str(i) for i in output_files]),
-    )
+    if ARGS.save_output:
+        LOGGER.info(
+            "Experiment complete. Results saved to %s.",
+            ", ".join([str(i) for i in output_files]),
+        )
 
 
 if __name__ == "__main__":
