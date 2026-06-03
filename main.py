@@ -920,7 +920,7 @@ class FileProcessor:
                     k: v for k, v in state.items() if k not in ("client", "csv_writer")
                 }
                 _ = self.log_file.write(
-                    json.dumps(loggable_state, ensure_ascii=False) + "\n"
+                    json.dumps(loggable_state, ensure_ascii=False, indent=4) + "\n"
                 )
                 self.log_file.flush()
 
