@@ -276,6 +276,33 @@ Revision: Kami pergi ke restoran baru itu semalam. Layanannya sangat buruk, jadi
 Revision: Tadinya aku mau mengatakan yang sebenarnya padamu, tapi aku malah panik.""",
         known_idioms=[],
     ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="The store had been in the red for three months. We just sat behind the counter cooling our heels, waiting for a stray customer to walk through the door.",
+        translation="Toko itu sudah berada di dalam merah selama tiga bulan. Kami hanya duduk di belakang meja kasir mendinginkan tumit kami, menunggu pelanggan tersesat berjalan melewati pintu.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=1,
+                feedback="The translation relies on literal word-for-word mappings for two distinct idioms. 'In the red' is translated as 'di dalam merah' instead of its financial meaning (merugi), and 'cooling our heels' is translated as 'mendinginkan tumit kami', completely destroying the figurative meaning of waiting idly.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="The phrase 'mendinginkan tumit kami' is severe translationese. No native Indonesian speaker uses this phrasing; it fails to convey natural narrative flow or cultural equivalence.",
+            ),
+            readability=RubricEntry(
+                score=2,
+                feedback="The syntax is understandable, but the literal translation of the idioms causes significant cognitive friction and breaks the narrative illusion.",
+            ),
+        ),
+        revision="""Planned Changes:
+- 'In the red' indicates financial deficit, which maps naturally to the accounting term 'merugi'.
+- 'Cooling our heels' describes a state of forced, idle waiting. To avoid a stiff dictionary substitution, I will apply situational paraphrasing to describe what is actually happening in the scene: 'duduk termangu... tanpa melakukan apa-apa' (sitting blankly... doing nothing).
+- Adjust the final clause ('waiting for a stray customer...') to read more fluidly in Indonesian narrative prose ('berharap ada satu-dua pelanggan yang tersesat masuk').
+
+Revision: Toko itu sudah merugi selama tiga bulan. Kami hanya duduk termangu di balik meja kasir tanpa melakukan apa-apa, berharap ada satu-dua pelanggan yang tersesat masuk ke dalam toko.""",
+        known_idioms=[],
+    ),
 ]
 
 
@@ -375,6 +402,8 @@ OPTIMIZER_INIT_PROMPT = f"""
 
 Source text: {{SOURCE_TEXT}}
 
+Situational Paraphrasing: If a literal translation of an idiom sounds stiff, or if a direct target-language idiomatic equivalent does not exist, unpack the idiom into its natural situational meaning. Translate what is actually happening in the scene rather than translating the words of the phrase mechanically.
+
 Translation:
 """.strip()
 
@@ -421,6 +450,8 @@ OPTIMIZER_RETRY_PROMPT = f"""
 {{CONTEXT}}
 
 Source text: {{SOURCE_TEXT}}
+ 
+Situational Paraphrasing: If a literal translation of an idiom sounds stiff, or if a direct target-language idiomatic equivalent does not exist, unpack the idiom into its natural situational meaning. Translate what is actually happening in the scene rather than translating the words of the phrase mechanically.
 
 Translation: {{TRANSLATION_ATTEMPT}}
 
