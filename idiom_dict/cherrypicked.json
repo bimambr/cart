@@ -6,6 +6,12 @@
     ],
     "source": "https://www.oed.com/dictionary/touch_v?tl=true#1211424970"
   },
+  "confidence trickster": {
+    "senses": [
+      "a person who deceives other people by making them believe something false or making them give money away; a con artist"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/confidence-trickster"
+  },
   "bloodsucking": {
     "senses": [
       "taking money, happiness, etc. from people in a way that is unfair or cruel"
@@ -110,5 +116,37 @@
       "to live or spend time in a place that is very big; sometimes used figuratively"
     ],
     "source": "https://www.merriam-webster.com/dictionary/ra"
+  },
+  "take (great) pains to do something": {
+    "senses": [
+      "to try very hard to do something"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/take-great-pains-to"
+  },
+  "draw the line": {
+    "senses": [
+      "to never do something because you think it is wrong",
+      "to put a limit on what you will do or allow to happen, esp. because you feel something is wrong."
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/draw-the-line"
+  },
+  "put someone off their stride/stroke": {
+    "senses": [
+      "to take someone's attention away from what they are doing, so that they stop doing it or do it wrong"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/put-off-stride"
+  },
+  "save your breath": {
+    "senses": [
+      "used to say that it is not worth talking to someone because they will not listen to you",
+      "to not say anything"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/save-breath"
+  },
+  "clap/lay/set eyes on someone/something": {
+    "senses": [
+      "to see someone or something for the first time"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/clap-lay-set-eyes-on"
   }
 }
