@@ -220,7 +220,7 @@ class Embedder:
         with open("idiom_dict/idiomKB.json", "r", encoding="utf-8") as f:
             json_data = json.load(f)  # pyright: ignore[reportAny]
             for entry in json_data:  # pyright: ignore[reportAny]
-                phrase = entry.get("idiom")  # pyright: ignore[reportAny]
+                phrase = entry.get("idiom").lower()  # pyright: ignore[reportAny]
                 en_meaning = entry.get("en_meaning")  # pyright: ignore[reportAny]
 
                 assert isinstance(phrase, str)
