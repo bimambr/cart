@@ -50,6 +50,7 @@
             pkgs.basedpyright
             pkgs.just
             pkgs.aria2
+            pkgs.tmux
           ];
 
           shellHook = ''
