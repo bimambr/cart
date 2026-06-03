@@ -16,9 +16,10 @@ further grounded using RAG to dynamically inject contexts (e.g., idiom definitio
 ## Requirements
 
 - Python 3.11 or higher (Python 3.14 is untested as of writing).
-- Python package: `aiohttp`.
+- Python package: `aiohttp` & `sentence-transformers`.
 - llama.cpp (llama-server).
-- LLM Model: A GGUF-compatible model. The experiments for the thesis were conducted using `unsloth/gemma-4-E2B-it-GGUF` (Q8_0 quant).
+- LLM: A GGUF-compatible model. The experiments for the thesis were conducted using `unsloth/gemma-4-E2B-it-GGUF` (Q8_0 quant).
+- Embedding model: `all-MiniLM-L6-v2`
 - Memory:
   - At least 16GB RAM if running on CPU, or
   - 6GB VRAM (NVIDIA GPU recommended).
@@ -45,7 +46,7 @@ scoop install python311 llama.cpp-vulkan
 4. Install Python dependencies:
 
 ```sh
-python311 -m pip install aiohttp
+python311 -m pip install aiohttp sentence-transformers
 ```
 
 5. There are two options to get the model:
@@ -55,7 +56,7 @@ python311 -m pip install aiohttp
 ```sh
 scoop install just aria2 git
 
-# Run this to download the model
+# Run this to download the models
 just setup
 ```
 
@@ -83,7 +84,7 @@ The experiment is run in three stages: preparing the data, running the LLM serve
 
 ##### Step 1: Prepare the corpus
 
-Create a JSON file in the corpus directory (e.g., [corpus/literature.json](corpus/literature.json)). It must have `source_lang`, `target_lang`, `type`, `external_knowledge`, and lastly `texts` containing an array of text objects (`content` and `external_knowledge`).
+Create a JSON file in the corpus directory (e.g., [corpus/grave-sight.json](corpus/grave-sight.json)). It must have `source_lang`, `target_lang`, `type`, `external_knowledge`, and lastly `texts` containing an array of text objects (`content` and `external_knowledge`).
 
 > [!NOTE]
 > Additional keys will be ignored. For example, the `page_on_translated_book` tracks where the passage appears in the translated book. You could embed the translated text directly instead, but doing so might imply that the model needs to see the reference, which it does not.
@@ -127,7 +128,9 @@ But you can add more idioms inside `idiom_dict/cherrypicked.json` with the follo
 Run this to vectorise:
 
 ```sh
-python vectorise_dictionary.py
+# This assumes you have downloaded the embedding model, otherwise run:
+# python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('all-MiniLM-L6-v2'); model.save('./all-MiniLM-L6-v2')"; \
+python main.py --input ./ --embedding-model "./all-MiniLM-L6-v2" --vectorise
 
 # Or using just:
 just vectorise
@@ -139,7 +142,7 @@ Open a terminal in the project's root directory and run the `llama-server`. This
 
 ```sh
 # Example command to run llama-server
-llama-server -m .\gemma-4-E2B-it.gguf --port 8000 -c 32768 -fa on --cache-ram 0 --repeat-penalty 1.0 --min-p 0.01 --top-k 64 --top-p 0.95 --no-webui -ngl 99
+llama-server -m ./gemma-4-E2B-it.gguf --port 8127 -c 32768 -fa on --cache-ram 2048 --repeat-penalty 1.0 --min-p 0.01 --top-k 64 --top-p 0.95 --no-webui -ngl 99
 
 # Or using just:
 just serve
@@ -147,10 +150,11 @@ just serve
 
 ##### Step 3: Run the Experiment Script
 
-Open a second terminal in the project's root directory. Run the `evaluator_optimizer.py` script, pointing it to your input corpus.
+Open a second terminal in the project's root directory. Run the `main.py` script, pointing it to your input corpus.
 
 ```sh
-python evaluator_optimizer.py --input "corpus/literature.json" --timeout 0 --iterations 1 --refinement-iterations 3 --preserve-last-n-messages 2
+# Append --baseline for a zero-shot translation generation
+python main.py --input "corpus/grave-sight.json" --timeout 0 --iterations 1 --refinement-iterations 3 --preserve-last-n-messages 0 --cache-prompt
 
 # Or using just:
 just run
