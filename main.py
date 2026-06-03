@@ -887,6 +887,14 @@ class FileProcessor:
             await self._process_text(source_text)
 
     async def _process_text(self, source_text: SourceTextEntry) -> None:
+        if ARGS.match_idioms_only:
+            if self.log_file:
+                _ = self.log_file.write(
+                    json.dumps(source_text, ensure_ascii=False, indent=4) + "\n"
+                )
+                self.log_file.flush()
+            return
+
         for i in range(ARGS.iterations):
             iteration_num = i + 1
             LOGGER.info(

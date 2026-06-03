@@ -428,6 +428,12 @@ def get_parsed_args() -> type[CLIArgs]:
         default=False,
         help="Generate idiom vectors",
     )
+    _ = parser.add_argument(
+        "--match-idioms-only",
+        action="store_true",
+        default=False,
+        help="Only match idioms without translating",
+    )
 
     parsed = parser.parse_args(namespace=CLIArgs)
     LOGGER.info("Using endpoint: %s", parsed.endpoint)
@@ -443,4 +449,5 @@ def get_parsed_args() -> type[CLIArgs]:
     LOGGER.info("Save output: %s", parsed.save_output)
     LOGGER.info("Baseline generation: %s", parsed.baseline)
     LOGGER.info("Generating vectors: %s", parsed.vectorise)
+    LOGGER.info("Match idioms only: %s", parsed.match_idioms_only)
     return parsed

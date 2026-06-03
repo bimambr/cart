@@ -120,6 +120,7 @@ class CLIArgs:
     save_output: bool
     baseline: bool
     vectorise: bool
+    match_idioms_only: bool
 
 
 class ExampleEntry(TypedDict):
