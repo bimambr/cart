@@ -365,64 +365,22 @@ def format_rubric(rubric: Rubric) -> str:
 """.strip()
 
 
-def format_examples(examples: list[ExampleEntry], depth: int) -> str:
-    def format_example(entry: ExampleEntry) -> str:
-        buffers = [
-            f"""
-Source text: {entry["source_text"]}
+OPTIMIZER_SYSTEM_PROMPT = """
+You are an expert literary translator specializing in shifting English prose into natural Indonesian narrative.
 
-Type: novel
-
-{format_idiom_knowledge(entry["known_idioms"])}
-
-Translation: {entry["translation"]}
-""".strip(),
-            f"""Grade the translation based on a 3-point rubric: accuracy, acceptability, and readability.
-
-Grades:
-{format_rubric(entry["rubric"])}
-""".strip(),
-            f"""
-Based on the grades, now provide a revision.
-
-{entry["revision"]}
-""".strip(),
-        ]
-        return "\n".join(buffers[:depth])
-
-    nl = "\n"
-    return f"""
-=== EXAMPLES START ===
-
-{f"{nl}---{nl}".join([format_example(i) for i in examples])}
-
-=== EXAMPLES END ===
+Linguistic and Stylistic Constraints:
+1. Pronoun Clusivity (Kita vs. Kami): Evaluate the speaker-audience relationship. Use "kita" if the audience is included in the action (inclusive). Use "kami" if the speaker's party excludes the audience (exclusive).
+2. Register and Pronoun Consistency: Maintain a uniform narrative voice. Do not mix formal pronouns ("saya", "-ku") with informal narrative verbs ("kataku"). Match "saya" with "kata saya" or "ujar saya".
+3. Temporal Aspect: Do not translate past-tense intentions ("was going to", "wouldn't") literally using the future marker "akan". Use aspectual markers like "tadinya", "sebelumnya", or omit the marker if the past context is established.
+4. Syntactic Transposition: Do not mirror the English clause layout or sentence boundaries 1:1. Invert clauses, merge/split sentences, or convert active structures to passive forms (using di- verbs) to preserve natural target language flow.
+5. Contextual Idiom Processing: Cross-reference the source text with the entries under "Known idiom definitions". You must perform a semantic validation check: if a listed idiom is a true contextual match, translate its figurative meaning rather than its literal words. If a listed idiom is a false positive (a surface-level word overlap that does not function as an idiom in this context), ignore the definition and translate the phrase according to its actual contextual meaning.
 """.strip()
 
 
-OPTIMIZER_INIT_PROMPT = f"""
-{format_examples(EXAMPLES, 1)}
+EVALUATOR_SYSTEM_PROMPT = """
+You are an expert literary editor. Your task is to evaluate translations against the source text based on a strict 3-point Nababan TQA rubric (Accuracy, Acceptability, Readability). 
 
-{{CONTEXT}}
-
-Source text: {{SOURCE_TEXT}}
-
-Situational Paraphrasing: If a literal translation of an idiom sounds stiff, or if a direct target-language idiomatic equivalent does not exist, unpack the idiom into its natural situational meaning. Translate what is actually happening in the scene rather than translating the words of the phrase mechanically.
-
-Translation:
-""".strip()
-
-
-EVALUATOR_PROMPT = f"""
-{format_examples(EXAMPLES, 2)}
-
-{{CONTEXT}}
-
-Source text: {{SOURCE_TEXT}}
-
-Translation: {{TRANSLATION_ATTEMPT}}
-
-Evaluate the translation based on a strict 3-point rubric. You MUST penalize literal translations (calques) of English idioms or phrases that sound unnatural in {{TARGET_LANGUAGE}}.
+You must strictly penalize translationese, literal calques of idioms, pronoun clusivity mismatches, register inconsistencies, and incorrect past-aspect framing.
 
 Scoring Criteria:
 Accuracy:
@@ -433,7 +391,7 @@ Accuracy:
 Acceptability (Naturalness):
 - 3: Reads like a text originally written by a native Indonesian speaker.
 - 2: Grammatically correct, but phrasing is slightly awkward or overly formal.
-- 1: "Translationese" - grammatically correct but utilizes phrasing nobody uses in real life (e.g., word-for-word literal translations like "penipu kepercayaan" for "confidence trickster").
+- 1: "Translationese" - grammatically correct but utilizes phrasing nobody uses in real life (e.g., word-for-word literal translations).
 
 Readability:
 - 3: Flows smoothly and effortlessly.
@@ -442,28 +400,41 @@ Readability:
 
 Target language evaluation:
 1. Identify any idioms or complex phrases in the source text.
-2. State how a native {{TARGET_LANGUAGE}} speaker would naturally express that concept, ignoring the {{SOURCE_LANGUAGE}} phrasing.
-3. Compare the provided translation against the native expectation. If the provided translation uses literal phrasing ("translationese") instead of the native equivalent, you MUST score Acceptability as a 1 or 2.
+2. Cross-reference your findings with the provided "Known idiom definitions" block. Differentiate between true semantic matches and false positives (e.g., mechanical token overlaps where the words do not function figuratively in the sentence context).
+3. State how a native speaker would naturally express the validated concepts, ignoring the source language phrasing.
+4. Compare the provided translation against the native expectation. If a true idiom match was translated literally (calque) or ignored, you MUST penalize and score Accuracy or Acceptability as a 1 or 2. If a listed idiom was correctly identified as a false positive, do not penalize the model for translating the words literally.
+""".strip()
+
+
+# keep optimizer purely structural so we don't have to
+# filter out, "Sure, here's the translated text:" and save tokens
+OPTIMIZER_INIT_PROMPT = """
+{CONTEXT}
+
+Source text: {SOURCE_TEXT}
+
+Translation:
+""".strip()
+
+
+# matching evaluator is easier so keep the conversational line
+# so we can activate our chat-tuned model persona.
+EVALUATOR_INIT_PROMPT = """
+Great, now grade this one.
+
+{CONTEXT}
+
+Source text: {SOURCE_TEXT}
+
+Translation: {TRANSLATION_ATTEMPT}
 
 Grades:
 """.strip()
 
 
-OPTIMIZER_RETRY_PROMPT = f"""
-{format_examples(EXAMPLES, 3)}
-
-{{CONTEXT}}
-
-Source text: {{SOURCE_TEXT}}
- 
-Situational Paraphrasing: If a literal translation of an idiom sounds stiff, or if a direct target-language idiomatic equivalent does not exist, unpack the idiom into its natural situational meaning. Translate what is actually happening in the scene rather than translating the words of the phrase mechanically.
-
-Translation: {{TRANSLATION_ATTEMPT}}
-
-Grade the translation based on a 3-point rubric: accuracy, acceptability, and readability.
-
+OPTIMIZER_RETRY_PROMPT = """
 Grades:
-{{GRADES}}
+{GRADES}
 
 Based on the grades, provide a revision. You MUST format your response exactly as follows:
 Planned Changes:
@@ -471,6 +442,15 @@ Planned Changes:
 
 Revision: <your final translated string>
 """.strip()
+
+
+EVALUATOR_RETRY_PROMPT = """
+Grade my revision.
+
+Translation: {TRANSLATION_ATTEMPT}
+
+Grades:  
+"""
 
 
 @overload
@@ -495,39 +475,80 @@ def get_last_state(
     return None
 
 
-def fill_in_messages(state: State, messages: list[tuple[str, str, str]]) -> None:
-    if ARGS.keep_n_messages == 0:
-        return
+def get_few_shot_turns(state: State) -> list[tuple[str, str, str]]:
+    ret: list[tuple[str, str, str]] = []
 
-    roles: dict[str, str] = {
-        "attempt": "translator",
-        "evaluation": "editor",
-    }
+    is_evaluating = state["history"] and state["history"][-1].get("type") == "attempt"
 
-    history = state["history"]
+    for idx, entry in enumerate(EXAMPLES):
+        is_initial = idx == 0
 
-    if ARGS.keep_n_messages > 0:
-        history = history[-ARGS.keep_n_messages - 1 :]
+        if is_evaluating:
+            ret.append(
+                (
+                    "user",
+                    (
+                        "Please grade my translation.\n\n"
+                        if is_initial
+                        else "Now grade this one.\n\n"
+                    )
+                    + f"Source text: {entry['source_text']}\n\n"
+                    + f"Translation: {entry['translation']}\n\n"
+                    + "Grades:\n",
+                    "user",
+                )
+            )
+            ret.append(("assistant", format_rubric(entry["rubric"]), "assistant"))
+            continue
 
-    LOGGER.info("Filling in %d messages from history.", len(history))
+        init_req = (
+            ("Please translate this " if is_initial else "Now translate this ")
+            + f"from {entry['source_lang']} to {entry['target_lang']}.\n\n"
+            + f"Source text: {entry['source_text']}\n\n"
+            + "Translation:\n"
+        )
+        ret.append(("user", init_req, "user"))
+        ret.append(("assistant", entry["translation"], "assistant"))
 
-    for entry in history:
-        assert "type" in entry
-        assert "prompt" in entry
-        assert "system_prompt" in entry
-        assert "raw_output" in entry
+        if not entry["revision"]:
+            continue
 
-        messages.append(("user", entry["prompt"], "user"))
-        messages.append(("assistant", entry["raw_output"], roles[entry["type"]]))
+        ret.append(
+            (
+                "user",
+                "Okay, please adjust the translation based on my feedback\n\n"
+                + format_rubric(entry["rubric"]),
+                "user",
+            )
+        )
+        ret.append(("assistant", entry["revision"], "assistant"))
+
+    return ret
 
 
 def build_messages(
     state: State, system_prompt: str, user_prompt: str
 ) -> list[tuple[str, str, str]]:
     messages: list[tuple[str, str, str]] = []
+
     if system_prompt:
         messages.append(("system", system_prompt, "system"))
-    fill_in_messages(state, messages)
+
+    messages.extend(get_few_shot_turns(state))
+
+    history = state["history"]
+    is_evaluating = history and history[-1].get("type") == "attempt"
+
+    for s in [
+        s
+        for s in history
+        if s.get("type") == ("evaluation" if is_evaluating else "attempt")
+    ]:
+        assert "prompt" in s
+        assert "raw_output" in s
+        messages.append(("user", s["prompt"], "user"))
+        messages.append(("assistant", s["raw_output"], "assistant"))
+
     messages.append(("user", user_prompt, "user"))
     return messages
 
@@ -539,14 +560,16 @@ def parse_rubric(text: str) -> Rubric:
         "readability": {"score": 0, "feedback": "Missing feedback."},
     }
 
-    for line in text.strip().splitlines():
-        # match: - key: score. feedback
-        match = re.match(r"- (\w+): (\d+)\.\s*(.*)", line.strip())
-        if not match:
-            continue
+    pattern = re.compile(
+        r"-\s*\*?\*?(accuracy|acceptability|readability)\*?\*?\s*:\s*\*?\*?(\d+)(?:\.|\b)\*?\*?\s*([\s\S]*?)(?=-\s*\*?\*?(?:accuracy|acceptability|readability)\b|\Z)",
+        re.IGNORECASE,
+    )
 
+    for match in pattern.finditer(text):
         key, score, feedback = match.groups()
-        rubric[key] = {
+        normalized_key = key.lower()
+
+        rubric[normalized_key] = {
             "score": int(score),
             "feedback": feedback.strip(),
         }
@@ -653,15 +676,12 @@ async def handle_optimization_state(state: State) -> None:
         assert "translation" in last_attempt
         assert "rubric" in last_evaluation
         prompt = OPTIMIZER_RETRY_PROMPT.format(
-            SOURCE_TEXT=state["source_text"]["text"],
-            TRANSLATION_ATTEMPT=last_attempt["translation"],
-            GRADES=format_rubric(last_evaluation["rubric"]),
-            CONTEXT=context,
+            GRADES=format_rubric(last_evaluation["rubric"])
         )
 
     temp = OPTIMIZER_TEMP if is_draft else OPTIMIZER_ALT_TEMP
     seed = state["optimizer_seed"] * 10 + state["attempt"]
-    messages = build_messages(state, "", prompt)
+    messages = build_messages(state, OPTIMIZER_SYSTEM_PROMPT, prompt)
     output = (
         await run_inference(
             state["client"],
@@ -698,6 +718,10 @@ async def handle_evaluation_state(state: State) -> None:
         state["max_attempt"],
     )
 
+    is_retrying = (
+        len([s for s in state["history"] if s.get("type") == "evaluation"]) > 0
+    )
+
     # do not mutate the original evaluator seed
     seed = state["evaluator_seed"] + state["iteration_id"] * 100
     last_attempt = state["history"][-1]
@@ -705,14 +729,12 @@ async def handle_evaluation_state(state: State) -> None:
     assert last_attempt.get("type") == "attempt"
     assert "translation" in last_attempt
 
-    prompt = EVALUATOR_PROMPT.format(
+    prompt = (EVALUATOR_RETRY_PROMPT if is_retrying else EVALUATOR_INIT_PROMPT).format(
         SOURCE_TEXT=state["source_text"]["text"],
         TRANSLATION_ATTEMPT=last_attempt["translation"],
         CONTEXT=format_context(state),
-        TARGET_LANGUAGE=state["source_text"]["target_lang"],
-        SOURCE_LANGUAGE=state["source_text"]["source_lang"],
     )
-    messages = build_messages(state, "", prompt)
+    messages = build_messages(state, EVALUATOR_SYSTEM_PROMPT, prompt)
     output = (
         await run_inference(
             state["client"],

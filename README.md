@@ -154,7 +154,7 @@ Open a second terminal in the project's root directory. Run the `main.py` script
 
 ```sh
 # Append --baseline for a zero-shot translation generation
-python main.py --input "corpus/grave-sight.json" --timeout 0 --iterations 1 --refinement-iterations 3 --preserve-last-n-messages 0 --cache-prompt
+python main.py --input "corpus/grave-sight.json" --timeout 0 --iterations 1 --refinement-iterations 3 --cache-prompt
 
 # Or using just:
 just run

@@ -117,7 +117,6 @@ class CLIArgs:
     refinement_iterations: int
     cache_prompt: bool
     omit_roles: bool
-    keep_n_messages: int
     save_output: bool
     baseline: bool
     vectorise: bool

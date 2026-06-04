@@ -32,7 +32,7 @@ serve mf="" *args:
     llama-server -m "./$model" --port {{port}} -c {{ctx}} -fa on --cache-ram 2048 --repeat-penalty 1.0 --min-p 0.01 --top-k 64 --top-p 0.95 {{args}}
 
 run input_file="corpus/literature.json" *args:
-    python main.py --input "{{input_file}}" --timeout 0 --iterations 1 --refinement-iterations 3 --preserve-last-n-messages 0 --cache-prompt {{args}}
+    python main.py --input "{{input_file}}" --timeout 0 --iterations 1 --refinement-iterations 3 --cache-prompt {{args}}
 
 vectorise mf="":
     @model="{{mf}}"; \
