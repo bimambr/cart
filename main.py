@@ -96,6 +96,7 @@ Revision: Dia akhirnya membocorkan rahasia tentang pesta kejutan itu, merusak se
                     "to disclose information prematurely.",
                 ],
                 translations={},
+                master_key="spill the beans",
             )
         ],
     ),
@@ -125,6 +126,7 @@ Revision: Dia akhirnya membocorkan rahasia tentang pesta kejutan itu, merusak se
                     "to do or say something exactly right.",
                 ],
                 translations={},
+                master_key="hit the nail on the head",
             )
         ],
     ),
@@ -156,6 +158,7 @@ Revision: Ketika dia mendengar kabar itu, dia merasa tidak enak badan dan memutu
                 idiom="under the weather",
                 senses=["feeling ill.", "slightly unwell or in low spirits."],
                 translations={},
+                master_key="under the weather",
             )
         ],
     ),
@@ -191,6 +194,7 @@ Revision: Dia tanpa sengaja membocorkan rahasia saat makan malam, dan semua oran
                     "to disclose something that was meant to be hidden.",
                 ],
                 translations={},
+                master_key="let the cat out of the bag",
             )
         ],
     ),
@@ -224,6 +228,7 @@ Revision: Alih-alih menangani keluhan klien, sang manajer malah lepas tangan dan
                     "to shift the responsibility or blame to someone else.",
                 ],
                 translations={},
+                master_key="pass the buck",
             )
         ],
     ),
