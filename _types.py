@@ -126,6 +126,9 @@ class Delta(TypedDict, total=False):
 class CLIArgs:
     endpoint: str
     model: str
+    evaluator_temperature: float
+    optimiser_init_temperature: float
+    optimiser_retry_temperature: float
     embedding_model: str
     iterations: int
     input: str

@@ -51,9 +51,6 @@ from lib import (
     wait,
 )
 
-EVALUATOR_TEMP = 1.0
-OPTIMISER_TEMP = 1.0
-OPTIMISER_ALT_TEMP = 1.0
 EVALUATOR_SEED = 727
 SEEDS = [101, 202, 303, 404, 505, 606, 707, 808, 909, 1010]
 
@@ -586,7 +583,7 @@ async def handle_baseline_state(state: State) -> None:
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
     prompt = f"Provide exactly one translation of the following text into {state['source_text']['target_lang']}:\n{state['source_text']['text']}\n\nTranslation:\n"
-    temp = OPTIMISER_TEMP
+    temp = ARGS.optimiser_init_temperature
     seed = state["optimiser_seed"]
     messages = build_messages(state, "", prompt)
     output = (
@@ -680,7 +677,11 @@ async def handle_optimisation_state(state: State) -> None:
             GRADES=format_rubric(last_evaluation["rubric"])
         )
 
-    temp = OPTIMISER_TEMP if is_draft else OPTIMISER_ALT_TEMP
+    temp = (
+        ARGS.optimiser_init_temperature
+        if is_draft
+        else ARGS.optimiser_retry_temperature
+    )
     seed = state["optimiser_seed"] * 10 + state["attempt"]
     messages = build_messages(state, OPTIMISER_SYSTEM_PROMPT, prompt)
     output = (
@@ -741,7 +742,7 @@ async def handle_evaluation_state(state: State) -> None:
             state["client"],
             ARGS.endpoint,
             ARGS.model,
-            EVALUATOR_TEMP,
+            ARGS.evaluator_temperature,
             seed,
             timeout=ARGS.timeout,
             cache_prompt=ARGS.cache_prompt,
@@ -753,7 +754,7 @@ async def handle_evaluation_state(state: State) -> None:
         "type": "evaluation",
         "prompt": prompt,
         "seed": seed,
-        "temp": EVALUATOR_TEMP,
+        "temp": ARGS.evaluator_temperature,
         "rubric": rubric,
         "raw_output": output,
     }
@@ -773,7 +774,7 @@ async def handle_evaluation_state(state: State) -> None:
                 last_attempt.get("seed", -1),
                 last_attempt.get("temp", -1),
                 seed,
-                EVALUATOR_TEMP,
+                ARGS.evaluator_temperature,
                 state["source_text"]["text"],
                 last_attempt["translation"],
                 evaluation["rubric"],

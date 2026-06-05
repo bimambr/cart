@@ -478,10 +478,40 @@ def get_parsed_args() -> type[CLIArgs]:
         default=False,
         help="Only match idioms without translating",
     )
+    _ = parser.add_argument(
+        "--evaluator-temperature",
+        type=float,
+        default=1.0,
+        help="The temperature for the evaluation generation",
+    )
+    _ = parser.add_argument(
+        "--optimiser-init-temperature",
+        type=float,
+        default=1.0,
+        help="The temperature for the initial translation generation",
+    )
+    _ = parser.add_argument(
+        "--optimiser-retry-temperature",
+        type=float,
+        default=1.0,
+        help="The temperature for the translation refinement generation",
+    )
 
     parsed = parser.parse_args(namespace=CLIArgs)
     LOGGER.info("Using endpoint: %s", parsed.endpoint)
     LOGGER.info("Model: %s", parsed.model)
+    LOGGER.info(
+        "Optimiser init temperature: %f",
+        parsed.optimiser_init_temperature,
+    )
+    LOGGER.info(
+        "Optimiser refinement temperature: %f",
+        parsed.optimiser_retry_temperature,
+    )
+    LOGGER.info(
+        "Evaluator temperature: %f",
+        parsed.evaluator_temperature,
+    )
     LOGGER.info("Embedding model: %s", parsed.embedding_model)
     LOGGER.info("Iterations per seed: %d", parsed.iterations)
     LOGGER.info("Refinement iterations: %d", parsed.refinement_iterations)
