@@ -440,7 +440,7 @@ Based on the grades, provide a revision. You MUST format your response exactly a
 Planned Changes:
 - <your reasoning>
 
-Revision: <your final translated string>
+Revision: <the complete updated translation block containing all sentences>
 """.strip()
 
 
