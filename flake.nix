@@ -27,6 +27,11 @@
             aiohttp
             pandas
             ruff
+            (
+              scipy-stubs.overrideAttrs (oldAttrs: {
+                postPatch = "sed -i -E 's/uv_build[><=0-9.,]*/uv_build/g' pyproject.toml";
+              })
+            )
             (sentence-transformers.overrideAttrs
               (old: {
                 postInstall =

@@ -3,7 +3,10 @@
 /*.xls
 *.gguf
 *.pyc
+
 *_attempts/
+wilcoxon_results_*
+blind_key.json
 
 # Nix
 # `nix develop --profile ./.nix`
