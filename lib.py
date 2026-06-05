@@ -454,12 +454,6 @@ def get_parsed_args() -> type[CLIArgs]:
         help="Cache the prompt for faster subsequent requests",
     )
     _ = parser.add_argument(
-        "--omit-roles",
-        action="store_true",
-        default=False,
-        help="Omit roles in system prompts",
-    )
-    _ = parser.add_argument(
         "--no-save",
         action="store_false",
         default=True,
@@ -494,7 +488,6 @@ def get_parsed_args() -> type[CLIArgs]:
     LOGGER.info("Input files: %s", parsed.input)
     LOGGER.info("Timeout: %d seconds", parsed.timeout)
     LOGGER.info("Cache prompt: %s", parsed.cache_prompt)
-    LOGGER.info("Omit roles: %s", parsed.omit_roles)
     LOGGER.info("Save output: %s", parsed.save_output)
     LOGGER.info("Baseline generation: %s", parsed.baseline)
     LOGGER.info("Generating vectors: %s", parsed.vectorise)

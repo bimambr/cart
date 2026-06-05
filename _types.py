@@ -132,7 +132,6 @@ class CLIArgs:
     timeout: int
     refinement_iterations: int
     cache_prompt: bool
-    omit_roles: bool
     save_output: bool
     baseline: bool
     vectorise: bool
