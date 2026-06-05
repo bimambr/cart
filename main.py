@@ -402,7 +402,7 @@ Target language evaluation:
 1. Identify any idioms or complex phrases in the source text.
 2. Cross-reference your findings with the provided "Known idiom definitions" block. Differentiate between true semantic matches and false positives (e.g., mechanical token overlaps where the words do not function figuratively in the sentence context).
 3. State how a native speaker would naturally express the validated concepts, ignoring the source language phrasing.
-4. Compare the provided translation against the native expectation. If a true idiom match was translated literally (calque) or ignored, you MUST penalize and score Accuracy or Acceptability as a 1 or 2. If a listed idiom was correctly identified as a false positive, do not penalize the model for translating the words literally.
+4. Verify idiomatic authenticity: Reject target language expressions that are literal conceptual translations (calques) of English idioms, even if they are technically understandable. If an expression only appears in translated media (e.g., song lyrics, machine-translated subtitles) but is not part of authentic, organic Indonesian narrative prose, you MUST downgrade Acceptability to 1 or 2 and label it "translationese."
 """.strip()
 
 
