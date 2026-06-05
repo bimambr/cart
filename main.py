@@ -585,7 +585,7 @@ async def handle_baseline_state(state: State) -> None:
     LOGGER.info(
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
-    prompt = f"Translate the following text into {state['source_text']['target_lang']}:\n{state['source_text']['text']}\n\nTranslation:\n"
+    prompt = f"Provide exactly one translation of the following text into {state['source_text']['target_lang']}:\n{state['source_text']['text']}\n\nTranslation:\n"
     temp = OPTIMISER_TEMP
     seed = state["optimiser_seed"]
     messages = build_messages(state, "", prompt)
