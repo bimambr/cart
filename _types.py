@@ -51,7 +51,7 @@ class State(TypedDict):
     max_attempt: int
     attempt: int
     history: list[TranslationAttempt | TranslationEvaluation]
-    optimizer_seed: int
+    optimiser_seed: int
     evaluator_seed: int
     client: "aiohttp.ClientSession"
     csv_writer: "CSVWriter | None"

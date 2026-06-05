@@ -52,8 +52,8 @@ from lib import (
 )
 
 EVALUATOR_TEMP = 1.0
-OPTIMIZER_TEMP = 1.0
-OPTIMIZER_ALT_TEMP = 1.0
+OPTIMISER_TEMP = 1.0
+OPTIMISER_ALT_TEMP = 1.0
 EVALUATOR_SEED = 727
 SEEDS = [101, 202, 303, 404, 505, 606, 707, 808, 909, 1010]
 
@@ -276,7 +276,7 @@ Revision: Kami pergi ke restoran baru itu semalam. Layanannya sangat buruk, jadi
             ),
         ),
         revision="""Planned Changes:
-- The source text relies on 'was going to' and 'panicked' to contrast a past intention with an unexpected outcome. To map this past tense dynamic naturally into Indonesian, I will add 'tadinya' (initially) to anchor the unfulfilled plan in the past, and 'malah' (instead) to emphasize the contrary reaction of panicking.
+- The source text relies on 'was going to' and 'panicked' to contrast a past intention with an unexpected outcome. To map this past tense dynamic naturally into Indonesian, I will add 'tadinya' (initially) to anchor the unfulfilled plan in the past, and 'malah' (instead) to emphasise the contrary reaction of panicking.
 
 Revision: Tadinya aku mau mengatakan yang sebenarnya padamu, tapi aku malah panik.""",
         known_idioms=[],
@@ -365,8 +365,8 @@ def format_rubric(rubric: Rubric) -> str:
 """.strip()
 
 
-OPTIMIZER_SYSTEM_PROMPT = """
-You are an expert literary translator specializing in shifting English prose into natural Indonesian narrative.
+OPTIMISER_SYSTEM_PROMPT = """
+You are an expert literary translator specialising in shifting English prose into natural Indonesian narrative.
 
 Linguistic and Stylistic Constraints:
 1. Pronoun Clusivity (Kita vs. Kami): Evaluate the speaker-audience relationship. Use "kita" if the audience is included in the action (inclusive). Use "kami" if the speaker's party excludes the audience (exclusive).
@@ -380,7 +380,7 @@ Linguistic and Stylistic Constraints:
 EVALUATOR_SYSTEM_PROMPT = """
 You are an expert literary editor. Your task is to evaluate translations against the source text based on a strict 3-point Nababan TQA rubric (Accuracy, Acceptability, Readability). 
 
-You must strictly penalize translationese, literal calques of idioms, pronoun clusivity mismatches, register inconsistencies, and incorrect past-aspect framing.
+You must strictly penalise translationese, literal calques of idioms, pronoun clusivity mismatches, register inconsistencies, and incorrect past-aspect framing.
 
 Scoring Criteria:
 Accuracy:
@@ -391,7 +391,7 @@ Accuracy:
 Acceptability (Naturalness):
 - 3: Reads like a text originally written by a native Indonesian speaker.
 - 2: Grammatically correct, but phrasing is slightly awkward or overly formal.
-- 1: "Translationese" - grammatically correct but utilizes phrasing nobody uses in real life (e.g., word-for-word literal translations).
+- 1: "Translationese" - grammatically correct but utilises phrasing nobody uses in real life (e.g., word-for-word literal translations).
 
 Readability:
 - 3: Flows smoothly and effortlessly.
@@ -406,9 +406,10 @@ Target language evaluation:
 """.strip()
 
 
-# keep optimizer purely structural so we don't have to
-# filter out, "Sure, here's the translated text:" and save tokens
-OPTIMIZER_INIT_PROMPT = """
+# keep optimiser purely structural so we don't have to
+# filter out conversational lines such as
+# > "Sure, here's the translated text:"
+OPTIMISER_INIT_PROMPT = """
 {CONTEXT}
 
 Source text: {SOURCE_TEXT}
@@ -432,7 +433,7 @@ Grades:
 """.strip()
 
 
-OPTIMIZER_RETRY_PROMPT = """
+OPTIMISER_RETRY_PROMPT = """
 Grades:
 {GRADES}
 
@@ -567,9 +568,9 @@ def parse_rubric(text: str) -> Rubric:
 
     for match in pattern.finditer(text):
         key, score, feedback = match.groups()
-        normalized_key = key.lower()
+        normalised_key = key.lower()
 
-        rubric[normalized_key] = {
+        rubric[normalised_key] = {
             "score": int(score),
             "feedback": feedback.strip(),
         }
@@ -585,8 +586,8 @@ async def handle_baseline_state(state: State) -> None:
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
     prompt = f"Translate the following text into {state['source_text']['target_lang']}:\n{state['source_text']['text']}\n\nTranslation:\n"
-    temp = OPTIMIZER_TEMP
-    seed = state["optimizer_seed"]
+    temp = OPTIMISER_TEMP
+    seed = state["optimiser_seed"]
     messages = build_messages(state, "", prompt)
     output = (
         await run_inference(
@@ -635,7 +636,7 @@ async def handle_baseline_state(state: State) -> None:
         )
 
 
-async def handle_optimization_state(state: State) -> None:
+async def handle_optimisation_state(state: State) -> None:
     state["attempt"] += 1
     state["next_state"] = "evaluation"
 
@@ -653,7 +654,7 @@ async def handle_optimization_state(state: State) -> None:
 
     context = format_context(state)
     if is_draft:
-        prompt = OPTIMIZER_INIT_PROMPT.format(
+        prompt = OPTIMISER_INIT_PROMPT.format(
             SOURCE_TEXT=state["source_text"]["text"], CONTEXT=context
         )
     else:
@@ -675,13 +676,13 @@ async def handle_optimization_state(state: State) -> None:
 
         assert "translation" in last_attempt
         assert "rubric" in last_evaluation
-        prompt = OPTIMIZER_RETRY_PROMPT.format(
+        prompt = OPTIMISER_RETRY_PROMPT.format(
             GRADES=format_rubric(last_evaluation["rubric"])
         )
 
-    temp = OPTIMIZER_TEMP if is_draft else OPTIMIZER_ALT_TEMP
-    seed = state["optimizer_seed"] * 10 + state["attempt"]
-    messages = build_messages(state, OPTIMIZER_SYSTEM_PROMPT, prompt)
+    temp = OPTIMISER_TEMP if is_draft else OPTIMISER_ALT_TEMP
+    seed = state["optimiser_seed"] * 10 + state["attempt"]
+    messages = build_messages(state, OPTIMISER_SYSTEM_PROMPT, prompt)
     output = (
         await run_inference(
             state["client"],
@@ -786,7 +787,7 @@ async def handle_evaluation_state(state: State) -> None:
             )
         )
 
-    state["next_state"] = "optimization"
+    state["next_state"] = "optimisation"
     if (
         sum(rubric[i]["score"] for i in ("accuracy", "acceptability", "readability"))
         == 9
@@ -800,8 +801,8 @@ class FileProcessor:
         "text_id",
         "iteration_id",
         "attempt",
-        "optimizer_seed",
-        "optimizer_temp",
+        "optimiser_seed",
+        "optimiser_temp",
         "evaluator_seed",
         "evaluator_temp",
         "source_text",
@@ -810,15 +811,15 @@ class FileProcessor:
         "raw_translation",
         "raw_evaluation",
         "timestamp",
-        "optimizer_system_prompt",
-        "optimizer_user_prompt",
+        "optimiser_system_prompt",
+        "optimiser_user_prompt",
         "evaluator_system_prompt",
         "evaluator_user_prompt",
     )
 
     STATE_HANDLERS: Final = {
         "baseline": handle_baseline_state,
-        "optimization": handle_optimization_state,
+        "optimisation": handle_optimisation_state,
         "evaluation": handle_evaluation_state,
     }
 
@@ -936,11 +937,11 @@ class FileProcessor:
             state = State(
                 iteration_id=iteration_num,
                 source_text=source_text,
-                next_state="baseline" if ARGS.baseline else "optimization",
+                next_state="baseline" if ARGS.baseline else "optimisation",
                 max_attempt=ARGS.refinement_iterations,
                 attempt=0,
                 history=[],
-                optimizer_seed=SEEDS[i],
+                optimiser_seed=SEEDS[i],
                 evaluator_seed=EVALUATOR_SEED,
                 client=self.client,
                 csv_writer=self.csv_writer,
@@ -977,7 +978,7 @@ async def main():
     output_files = [
         get_next_available_path(
             root
-            / ("baseline_attempts" if ARGS.baseline else "evaluator_optimizer_attempts")
+            / ("baseline_attempts" if ARGS.baseline else "evaluator_optimiser_attempts")
             / f"{p.stem}_translated_{ARGS.model}_attempt.csv"
         )
         for p in input_files

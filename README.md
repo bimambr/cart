@@ -162,4 +162,4 @@ just run
 
 ## Output
 
-The script will generate a .csv file in a newly created `evaluator_optimizer_attempts` directory. This CSV file contains a detailed log of every attempt in the refinement loop, allowing for a thorough analysis of the AI's translation products.
+The script will generate a .csv file in a newly created `evaluator_optimiser_attempts` directory. This CSV file contains a detailed log of every attempt in the refinement loop, allowing for a thorough analysis of the AI's translation products.
