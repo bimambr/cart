@@ -1,5 +1,5 @@
 {
-  description = "Agentic Translation Workflow environment";
+  description = "CART environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
