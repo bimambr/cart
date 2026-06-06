@@ -482,21 +482,21 @@ def get_parsed_args() -> type[CLIArgs]:
         "--evaluator-temp",
         "--evaluator-temperature",
         type=float,
-        default=1.0,
+        default=0.0,
         help="The temperature for the evaluation generation",
     )
     _ = parser.add_argument(
         "--optimiser-init-temp",
         "--optimiser-init-temperature",
         type=float,
-        default=1.0,
+        default=0.0,
         help="The temperature for the initial translation generation",
     )
     _ = parser.add_argument(
         "--optimiser-retry-temp",
         "--optimiser-retry-temperature",
         type=float,
-        default=1.0,
+        default=0.0,
         help="The temperature for the translation refinement generation",
     )
 
