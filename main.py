@@ -62,6 +62,7 @@ ARGS = get_parsed_args()
 
 # FIXME: maybe dynamically inject examples
 EXAMPLES: list[ExampleEntry] = [
+    # 1. misses the idiom definition (translates literally despite context)
     ExampleEntry(
         source_lang="en",
         target_lang="id",
@@ -70,7 +71,7 @@ EXAMPLES: list[ExampleEntry] = [
         rubric=Rubric(
             accuracy=RubricEntry(
                 score=1,
-                feedback="The idiom 'spilled the beans' was translated literally as 'menumpahkan kacang', completely losing the intended meaning of revealing a secret.",
+                feedback="The context provided the idiom 'spill the beans' as revealing a secret, but it was ignored and translated literally as 'menumpahkan kacang'.",
             ),
             acceptability=RubricEntry(
                 score=1,
@@ -82,7 +83,7 @@ EXAMPLES: list[ExampleEntry] = [
             ),
         ),
         revision="""Planned Changes:
-- The phrase 'menumpahkan kacang' is a literal calque of the English idiom and makes no sense. I will replace it with the natural Indonesian equivalent 'membocorkan rahasia'.
+- The previous translation ignored the provided external knowledge. I will replace the literal calque 'menumpahkan kacang' with the correct Indonesian equivalent 'membocorkan rahasia'.
 
 Revision: Dia akhirnya membocorkan rahasia tentang pesta kejutan itu, merusak segalanya.""",
         known_idioms=[
@@ -97,127 +98,99 @@ Revision: Dia akhirnya membocorkan rahasia tentang pesta kejutan itu, merusak se
             )
         ],
     ),
+    # 2. picks the wrong sense
     ExampleEntry(
         source_lang="en",
         target_lang="id",
-        source_text="After years of hard work, she finally hit the nail on the head with her new business idea.",
-        translation="Setelah bertahun-tahun bekerja keras, dia akhirnya menemukan ide bisnis yang tepat sasaran.",
-        rubric=Rubric(
-            accuracy=RubricEntry(
-                score=3,
-                feedback="The idiom 'hit the nail on the head' is accurately rendered as 'tepat sasaran'.",
-            ),
-            acceptability=RubricEntry(
-                score=3, feedback="The translation is acceptable and idiomatic."
-            ),
-            readability=RubricEntry(
-                score=3, feedback="The sentence is fluent and natural."
-            ),
-        ),
-        revision=None,
-        known_idioms=[
-            IdiomEntry(
-                idiom="hit the nail on the head",
-                senses=[
-                    "to describe exactly what is causing a situation or problem.",
-                    "to do or say something exactly right.",
-                ],
-                translations={},
-                master_key="hit the nail on the head",
-            )
-        ],
-    ),
-    ExampleEntry(
-        source_lang="en",
-        target_lang="id",
-        source_text="When he heard the news, he felt under the weather and decided to stay home.",
-        translation="Ketika dia mendengar kabar itu, dia memutuskan untuk tetap di rumah karena cuaca buruk.",
+        source_text="The new graphics card completely blew me away.",
+        translation="Kartu grafis baru itu benar-benar menerbangkanku.",
         rubric=Rubric(
             accuracy=RubricEntry(
                 score=1,
-                feedback="The idiom 'under the weather' means feeling ill, but the translation misinterpreted it as literal bad weather ('cuaca buruk').",
+                feedback="The idiom 'blow away' was translated using the physical sense of moving by wind ('menerbangkanku'), missing the intended figurative sense of impressing someone.",
             ),
             acceptability=RubricEntry(
-                score=3,
-                feedback="The sentence is grammatically correct and acceptable as a standalone Indonesian sentence.",
+                score=1,
+                feedback="Saying a graphics card 'menerbangkanku' is comical and incorrect in Indonesian tech contexts.",
             ),
             readability=RubricEntry(
                 score=3,
-                feedback="The sentence flows naturally and is easy to understand.",
+                feedback="The grammar is technically correct.",
             ),
         ),
         revision="""Planned Changes:
-- The translation incorrectly interpreted 'under the weather' literally as bad weather ('cuaca buruk'). I will correct this to reflect the true meaning of feeling ill by using 'merasa tidak enak badan'.
+- I selected the wrong sense of 'blow away' from the provided idiom dictionary. The context is technology impressing a user, so I need to use the second sense ('to impress greatly'). I will use 'membuatku sangat terkesan' or 'memukauku'.
 
-Revision: Ketika dia mendengar kabar itu, dia merasa tidak enak badan dan memutuskan untuk tetap di rumah.""",
+Revision: Kartu grafis baru itu benar-benar memukauku.""",
         known_idioms=[
             IdiomEntry(
-                idiom="under the weather",
-                senses=["feeling ill.", "slightly unwell or in low spirits."],
+                idiom="blow away",
+                senses=[
+                    "to kill someone.",
+                    "to impress someone greatly.",
+                    "to move something physically by wind.",
+                ],
                 translations={},
-                master_key="under the weather",
+                master_key="blow away",
             )
         ],
     ),
+    # 3. false positive (literal meaning intended, but idiom definition incorrectly applied)
     ExampleEntry(
         source_lang="en",
         target_lang="id",
-        source_text="She let the cat out of the bag during dinner, and everyone was shocked.",
-        translation="Dia secara tidak sengaja telah menyingkap sebuah tabir kerahasiaan pada saat perjamuan makan malam, dan semua hadirin terperanjat.",
+        source_text="The mechanic asked me to step on it to see if the pedal was stuck.",
+        translation="Mekanik itu memintaku untuk bergegas untuk melihat apakah pedalnya tersangkut.",
         rubric=Rubric(
             accuracy=RubricEntry(
-                score=3,
-                feedback="The core meaning of revealing a secret is successfully retained.",
+                score=1,
+                feedback="The phrase 'step on it' was translated using its idiomatic sense ('bergegas' / hurry up), but the context dictates a literal physical action of stepping on a pedal.",
             ),
             acceptability=RubricEntry(
-                score=1,
-                feedback="The phrasing ('menyingkap sebuah tabir kerahasiaan', 'perjamuan', 'hadirin terperanjat') is excessively poetic and formal for a simple dinner setting.",
-            ),
-            readability=RubricEntry(
                 score=2,
-                feedback="The sentence is overly wordy and cumbersome to read.",
+                feedback="The sentence feels logically disconnected because hurrying does not test a stuck pedal.",
+            ),
+            readability=RubricEntry(
+                score=3,
+                feedback="The phrasing flows well natively.",
             ),
         ),
         revision="""Planned Changes:
-- The phrasing 'menyingkap sebuah tabir kerahasiaan' is too formal and poetic; I will change it to 'membocorkan rahasia'.
-- The terms 'perjamuan makan malam' and 'hadirin terperanjat' are too stiff; I will simplify them to 'makan malam' and 'semua orang terkejut'.
+- I incorrectly applied the figurative idiom 'step on it' (to hurry). The presence of 'pedal' dictates that the literal meaning was intended. I will translate this as a physical action: 'menginjaknya'.
 
-Revision: Dia tanpa sengaja membocorkan rahasia saat makan malam, dan semua orang terkejut.""",
+Revision: Mekanik itu memintaku untuk menginjaknya untuk melihat apakah pedalnya tersangkut.""",
         known_idioms=[
             IdiomEntry(
-                idiom="let the cat out of the bag",
+                idiom="step on it",
                 senses=[
-                    "to accidentally reveal a secret.",
-                    "to disclose something that was meant to be hidden.",
+                    "to go faster or hurry up.",
                 ],
                 translations={},
-                master_key="let the cat out of the bag",
+                master_key="step on it",
             )
         ],
     ),
+    # 4. correct execution (idiom successfully adapted stylistically)
     ExampleEntry(
         source_lang="en",
         target_lang="id",
         source_text="Instead of addressing the client's complaints, the manager just passed the buck to the marketing team.",
-        translation="Alih-alih menangani keluhan klien, sang manajer malah mengoper uang ke tim pemasaran.",
+        translation="Alih-alih menangani keluhan klien, sang manajer malah lepas tangan dan melimpahkannya ke tim pemasaran.",
         rubric=Rubric(
             accuracy=RubricEntry(
-                score=1,
-                feedback="The idiom 'passed the buck' means to shift responsibility, but it was translated literally as 'mengoper uang' (passing money), losing the intended meaning entirely.",
+                score=3,
+                feedback="The idiom 'pass the buck' is accurately rendered based on the provided definition of shifting responsibility.",
             ),
             acceptability=RubricEntry(
-                score=1,
-                feedback="The phrase 'mengoper uang' is nonsensical in the context of handling client complaints.",
+                score=3,
+                feedback="The phrase 'lepas tangan dan melimpahkannya' is highly idiomatic and natural in corporate Indonesian contexts.",
             ),
             readability=RubricEntry(
                 score=3,
-                feedback="The sentence structure itself is readable, despite the severe semantic error.",
+                feedback="The narrative flow is flawless.",
             ),
         ),
-        revision="""Planned Changes:
-- The literal translation 'mengoper uang' misinterprets the idiom and makes no sense in context. I will replace it with the culturally appropriate and natural Indonesian phrasing 'lepas tangan dan melimpahkannya' to accurately convey the abdication of responsibility.
-
-Revision: Alih-alih menangani keluhan klien, sang manajer malah lepas tangan dan melimpahkannya ke tim pemasaran.""",
+        revision=None,
         known_idioms=[
             IdiomEntry(
                 idiom="pass the buck",
@@ -229,29 +202,225 @@ Revision: Alih-alih menangani keluhan klien, sang manajer malah lepas tangan dan
             )
         ],
     ),
+    # === false positives ===
     ExampleEntry(
         source_lang="en",
         target_lang="id",
-        source_text="We went to that new restaurant last night. The service was terrible, so we just left before ordering.",
-        translation="Kami pergi ke restoran baru itu semalam. Layanannya sangat buruk, jadi kami baru saja pergi sebelum memesan.",
+        source_text="The frustrated janitor kicked the bucket, spilling dirty water all over the freshly mopped floor.",
+        translation="Petugas kebersihan yang frustrasi itu meninggal dunia, menumpahkan air kotor ke seluruh lantai yang baru dipel.",
         rubric=Rubric(
             accuracy=RubricEntry(
-                score=2,
-                feedback="The translation uses 'baru saja' for 'just', which implies the action is happening right now. This breaks the timeline established by 'semalam' (last night).",
+                score=1,
+                feedback="The translator incorrectly applied the provided idiom definition for 'kick the bucket' (to die). The surrounding context of dirty water and a mopped floor indicates this is a literal physical action of kicking a pail, making 'meninggal dunia' a severe semantic error.",
             ),
             acceptability=RubricEntry(
-                score=2,
-                feedback="The use of 'baru saja' creates a confusing temporal clash for the reader, making the phrasing unnatural for a recounting of a past event.",
+                score=1,
+                feedback="Saying the janitor died and then spilled water is illogical and breaks the narrative.",
             ),
             readability=RubricEntry(
                 score=3,
-                feedback="The sentence is grammatically standard, despite the logical error.",
+                feedback="The sentence structure is technically sound.",
             ),
         ),
         revision="""Planned Changes:
-- The translation incorrectly maps 'just' to 'baru saja' (recently), which contradicts the 'semalam' timeframe. In this context, 'just' implies taking a simple or immediate alternative action. I will replace 'baru saja pergi' with 'langsung pergi saja' to maintain the correct past narrative flow.
+- I blindly applied the figurative idiom definition ('meninggal dunia') provided in the external knowledge. The context clearly requires the literal meaning. I will revert to translating the physical action: 'menendang ember'.
 
-Revision: Kami pergi ke restoran baru itu semalam. Layanannya sangat buruk, jadi kami langsung pergi saja sebelum memesan.""",
+Revision: Petugas kebersihan yang frustrasi itu menendang ember, menumpahkan air kotor ke seluruh lantai yang baru dipel.""",
+        known_idioms=[
+            IdiomEntry(
+                idiom="kick the bucket",
+                senses=[
+                    "to die.",
+                ],
+                translations={},
+                master_key="kick the bucket",
+            )
+        ],
+    ),
+    # 8. another false positive
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="After finishing his heavy steak dinner, he asked the waiter for a piece of cake.",
+        translation="Setelah menghabiskan makan malam steik yang mengenyangkan, dia meminta hal yang sangat mudah kepada pelayan.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=1,
+                feedback="The external knowledge for 'piece of cake' (an easy task) was inappropriately applied. In a restaurant setting directly following a meal, the source text refers to literal dessert. It must be translated as 'sepotong kue'.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="Asking a waiter for 'an easy thing' in this context is completely unnatural and nonsensical.",
+            ),
+            readability=RubricEntry(
+                score=3,
+                feedback="The grammar is correct.",
+            ),
+        ),
+        revision="""Planned Changes:
+- The translation used the figurative sense ('hal yang sangat mudah') from the idiom dictionary, ignoring the restaurant context. I will ignore the external knowledge and translate 'piece of cake' literally to 'sepotong kue'.
+
+Revision: Setelah menghabiskan makan malam steik yang mengenyangkan, dia meminta sepotong kue kepada pelayan.""",
+        known_idioms=[
+            IdiomEntry(
+                idiom="piece of cake",
+                senses=[
+                    "something easily achieved.",
+                    "a simple task.",
+                ],
+                translations={},
+                master_key="piece of cake",
+            )
+        ],
+    ),
+    # 9. another false positive
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="While eating the wild game meat, he accidentally bit the bullet that was still lodged in the tissue, cracking his tooth.",
+        translation="Saat memakan daging hewan liar itu, dia tidak sengaja menahan penderitaan yang masih bersarang di jaringannya, membuat giginya retak.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=1,
+                feedback="The idiom 'bite the bullet' was mistakenly translated using its figurative sense ('menahan penderitaan'). The presence of hunting, meat, and a cracked tooth means this refers to a literal piece of ammunition.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="The phrasing 'menahan penderitaan yang masih bersarang di jaringannya' makes absolutely no sense in Indonesian.",
+            ),
+            readability=RubricEntry(
+                score=2,
+                feedback="The confusing semantics disrupt readability.",
+            ),
+        ),
+        revision="""Planned Changes:
+- The provided idiom definition ('to endure a painful situation') is a trap here. The context demands a literal translation of biting a physical bullet left in hunted meat. I will replace the figurative attempt with the literal action: 'menggigit peluru'.
+
+Revision: Saat memakan daging hewan liar itu, dia tidak sengaja menggigit peluru yang masih bersarang di jaringannya, membuat giginya retak.""",
+        known_idioms=[
+            IdiomEntry(
+                idiom="bite the bullet",
+                senses=[
+                    "to endure a painful or otherwise unpleasant situation that is seen as unavoidable.",
+                ],
+                translations={},
+                master_key="bite the bullet",
+            )
+        ],
+    ),
+    # === technically accurate but clunky/ungrammatical translations ===
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="She opened her bag, took out her wallet, and paid for her coffee. The coffee was very hot.",
+        translation="Dia membuka tasnya, mengeluarkan dompetnya, dan membayar untuk kopinya. Kopi itu adalah sangat panas.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=3,
+                feedback="All informational elements are translated.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="Heavy translationese. The repetitive '-nya' suffixes feel highly unnatural. 'Membayar untuk' is a literal calque of 'paid for'. Using 'adalah' as a direct translation of the copula 'was' before an adjective is grammatically incorrect in Indonesian.",
+            ),
+            readability=RubricEntry(
+                score=2,
+                feedback="The sentence is comprehensible but reads like a machine translation, causing stylistic friction.",
+            ),
+        ),
+        revision="""Planned Changes:
+- Remove redundant possessive suffixes ('-nya') since ownership is already established by the subject.
+- Drop the literal preposition 'untuk' after 'membayar'.
+- Remove the incorrect copula 'adalah' before the adjective 'panas'.
+
+Revision: Dia membuka tas, mengeluarkan dompet, lalu membayar kopinya. Kopi tersebut sangat panas.""",
+        known_idioms=[],
+    ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="The students must submit all the required documents to the teachers.",
+        translation="Para siswa-siswa harus mengumpulkan semua dokumen-dokumen yang dibutuhkan kepada para guru-guru.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=3,
+                feedback="The core meaning is intact.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="Severe grammatical redundancy. Indonesian does not require strict pluralization of every noun. Combining the plural marker 'para'/'semua' with noun reduplication ('siswa-siswa', 'dokumen-dokumen') is a common structural error and highly unidiomatic.",
+            ),
+            readability=RubricEntry(
+                score=1,
+                feedback="The excessive reduplication makes the sentence extremely clunky and exhausting to read.",
+            ),
+        ),
+        revision="""Planned Changes:
+- Eliminate the double pluralizations. Once a quantifier like 'para' or 'semua' is used, the following noun must remain singular. I will change 'para siswa-siswa' to 'para siswa' and 'semua dokumen-dokumen' to 'semua dokumen'.
+
+Revision: Para siswa harus mengumpulkan semua dokumen yang dibutuhkan kepada guru.""",
+        known_idioms=[],
+    ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="Because of the fact that the project was behind schedule, the manager forced us to burn the midnight oil.",
+        translation="Dikarenakan oleh fakta bahwa proyek itu berada di belakang jadwal, manajer memaksa kami untuk membakar minyak tengah malam.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=1,
+                feedback="The idiom 'burn the midnight oil' was translated literally as 'membakar minyak tengah malam', missing the provided definition entirely.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="The syntax is heavily influenced by English structure. 'Dikarenakan oleh fakta bahwa' is a bloated, literal calque of 'because of the fact that'. 'Berada di belakang jadwal' is also a stiff literal translation of 'behind schedule'.",
+            ),
+            readability=RubricEntry(
+                score=2,
+                feedback="The clunky structural phrasing combined with the literal idiom makes the sentence feel highly artificial.",
+            ),
+        ),
+        revision="""Planned Changes:
+- Simplify the bloated conjunction 'Dikarenakan oleh fakta bahwa' to the natural Indonesian equivalent 'Karena'.
+- Replace the literal 'berada di belakang jadwal' with the standard term 'terlambat dari jadwal'.
+- Apply the external knowledge for 'burn the midnight oil' and translate it contextually as 'bekerja lembur hingga larut malam'.
+
+Revision: Karena proyek tersebut terlambat dari jadwal, manajer memaksa kami untuk bekerja lembur hingga larut malam.""",
+        known_idioms=[
+            IdiomEntry(
+                idiom="burn the midnight oil",
+                senses=[
+                    "to read, study, or work late into the night.",
+                ],
+                translations={},
+                master_key="burn the midnight oil",
+            )
+        ],
+    ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="The terms and conditions must be read and accepted by the user before creating an account.",
+        translation="Syarat dan ketentuan harus dibaca dan diterima oleh pengguna sebelum membuat sebuah akun.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=3,
+                feedback="The meaning is fully preserved.",
+            ),
+            acceptability=RubricEntry(
+                score=2,
+                feedback="While technically correct, the phrasing feels like a rigid manual. Using the active voice ('pengguna harus membaca...') or streamlining the subject/verb relationship would make this interface copy feel more native. Furthermore, 'sebuah akun' is a literal translation of the English indefinite article 'an', which is unnecessary here.",
+            ),
+            readability=RubricEntry(
+                score=2,
+                feedback="The sentence is slightly stiff due to the formal passive structure paired with the unneeded article.",
+            ),
+        ),
+        revision="""Planned Changes:
+- Remove the unnecessary indefinite article 'sebuah' before 'akun'.
+- Restructure the sentence from a stiff passive format into a more direct active voice, which is preferred for user instructions in Indonesian UI/UX contexts.
+
+Revision: Pengguna harus membaca dan menyetujui syarat dan ketentuan sebelum membuat akun.""",
         known_idioms=[],
     ),
     ExampleEntry(
@@ -281,28 +450,102 @@ Revision: Tadinya aku mau mengatakan yang sebenarnya padamu, tapi aku malah pani
     ExampleEntry(
         source_lang="en",
         target_lang="id",
-        source_text="The store had been in the red for three months. We just sat behind the counter cooling our heels, waiting for a stray customer to walk through the door.",
-        translation="Toko itu sudah berada di dalam merah selama tiga bulan. Kami hanya duduk di belakang meja kasir mendinginkan tumit kami, menunggu pelanggan tersesat berjalan melewati pintu.",
+        source_text="My brother called me yesterday to ask for some money.",
+        translation="Kakak laki-lakiku meneleponku kemarin untuk meminta uang.",
         rubric=Rubric(
             accuracy=RubricEntry(
-                score=1,
-                feedback="The translation relies on literal word-for-word mappings for two distinct idioms. 'In the red' is translated as 'di dalam merah' instead of its financial meaning (merugi), and 'cooling our heels' is translated as 'mendinginkan tumit kami', completely destroying the figurative meaning of waiting idly.",
+                score=2,
+                feedback="The English word 'brother' only denotes gender, not relative age. The translation assumed 'kakak' (older brother). Without surrounding context, forcing an age relationship is a semantic hallucination.",
             ),
             acceptability=RubricEntry(
-                score=1,
-                feedback="The phrase 'mendinginkan tumit kami' is severe translationese. No native Indonesian speaker uses this phrasing; it fails to convey natural narrative flow or cultural equivalence.",
+                score=2,
+                feedback="While grammatically perfect, the translation forces specificity that does not exist in the source text.",
             ),
             readability=RubricEntry(
-                score=2,
-                feedback="The syntax is understandable, but the literal translation of the idioms causes significant cognitive friction and breaks the narrative illusion.",
+                score=3,
+                feedback="The sentence reads smoothly.",
             ),
         ),
         revision="""Planned Changes:
-- 'In the red' indicates financial deficit, which maps naturally to the accounting term 'merugi'.
-- 'Cooling our heels' describes a state of forced, idle waiting. To avoid a stiff dictionary substitution, I will apply situational paraphrasing to describe what is actually happening in the scene: 'duduk termangu... tanpa melakukan apa-apa' (sitting blankly... doing nothing).
-- Adjust the final clause ('waiting for a stray customer...') to read more fluidly in Indonesian narrative prose ('berharap ada satu-dua pelanggan yang tersesat masuk').
+- I incorrectly assumed the brother was older ('kakak'). Since the source text does not specify age, I will use the age-neutral kinship term 'saudara' combined with the gender marker 'laki-laki'.
 
-Revision: Toko itu sudah merugi selama tiga bulan. Kami hanya duduk termangu di balik meja kasir tanpa melakukan apa-apa, berharap ada satu-dua pelanggan yang tersesat masuk ke dalam toko.""",
+Revision: Saudara laki-lakiku meneleponku kemarin untuk meminta uang.""",
+        known_idioms=[],
+    ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="The startup has a strong vision and a high chance of success.",
+        translation="Perusahaan rintisan itu memiliki sebuah visi yang kuat dan sebuah peluang sukses yang tinggi.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=3,
+                feedback="All words are accounted for.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="Translating the English article 'a' directly to the Indonesian numeral counter 'sebuah' for abstract concepts like 'vision' and 'chance' is a severe case of translationese. Indonesian does not use classifiers for non-physical nouns.",
+            ),
+            readability=RubricEntry(
+                score=2,
+                feedback="The repetitive use of 'sebuah' disrupts the natural flow of the sentence.",
+            ),
+        ),
+        revision="""Planned Changes:
+- Remove the counter 'sebuah' before 'visi' and 'peluang' because they are abstract nouns. Indonesian does not require articles in these positions.
+
+Revision: Perusahaan rintisan itu memiliki visi yang kuat dan peluang sukses yang tinggi.""",
+        known_idioms=[],
+    ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="When I was a kid, I walked to school every day.",
+        translation="Ketika aku adalah seorang anak, aku telah berjalan kaki ke sekolah setiap hari.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=2,
+                feedback="The English past tense was incorrectly mapped to the Indonesian perfective aspect marker 'telah' (already completed). 'Telah' does not work for habitual, repeated actions in the past.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="The phrase 'Ketika aku adalah seorang anak' is a rigid, word-for-word calque of 'When I was a kid'. Combined with the incorrect use of 'telah', the sentence is highly unnatural.",
+            ),
+            readability=RubricEntry(
+                score=2,
+                feedback="The sentence is understandable but feels entirely machine-generated.",
+            ),
+        ),
+        revision="""Planned Changes:
+- Replace the rigid calque 'Ketika aku adalah seorang anak' with the natural phrase 'Saat aku masih kecil'.
+- Remove the perfective marker 'telah'. The past context is already established by 'saat aku masih kecil', and 'setiap hari' denotes a habit, making 'telah' grammatically incompatible.
+
+Revision: Saat aku masih kecil, aku berjalan kaki ke sekolah setiap hari.""",
+        known_idioms=[],
+    ),
+    ExampleEntry(
+        source_lang="en",
+        target_lang="id",
+        source_text="You must verify your email before we can process the refund.",
+        translation="Kamu harus memverifikasi email Anda sebelum kami bisa memproses pengembalian dana.",
+        rubric=Rubric(
+            accuracy=RubricEntry(
+                score=3,
+                feedback="The translation captures the correct instructions.",
+            ),
+            acceptability=RubricEntry(
+                score=1,
+                feedback="The translation mixes the informal subject pronoun 'kamu' with the formal possessive pronoun 'Anda' within the exact same sentence. English 'you' must be mapped to a consistent politeness register.",
+            ),
+            readability=RubricEntry(
+                score=2,
+                feedback="The jarring shift in formality breaks the professional tone.",
+            ),
+        ),
+        revision="""Planned Changes:
+- The sentence suffers from a register mismatch. Given the context is customer service (processing a refund), I need to use the formal register consistently. I will change 'Kamu' to 'Anda'.
+
+Revision: Anda harus memverifikasi email Anda sebelum kami bisa memproses pengembalian dana.""",
         known_idioms=[],
     ),
 ]
@@ -363,70 +606,38 @@ def format_rubric(rubric: Rubric) -> str:
 
 
 OPTIMISER_SYSTEM_PROMPT = """
-You are an expert literary translator specialising in shifting English prose into natural Indonesian narrative.
-
-Linguistic and Stylistic Constraints:
-1. Pronoun Clusivity (Kita vs. Kami): Evaluate the speaker-audience relationship. Use "kita" if the audience is included in the action (inclusive). Use "kami" if the speaker's party excludes the audience (exclusive).
-2. Register and Pronoun Consistency: Maintain a uniform narrative voice. Do not mix formal pronouns ("saya", "-ku") with informal narrative verbs ("kataku"). Match "saya" with "kata saya" or "ujar saya".
-3. Temporal Aspect: Do not translate past-tense intentions ("was going to", "wouldn't") literally using the future marker "akan". Use aspectual markers like "tadinya", "sebelumnya", or omit the marker if the past context is established.
-4. Syntactic Transposition: Do not mirror the English clause layout or sentence boundaries 1:1. Invert clauses, merge/split sentences, or convert active structures to passive forms (using di- verbs) to preserve natural target language flow.
-5. Contextual Idiom Processing: Cross-reference the source text with the entries under "Known idiom definitions". You must perform a semantic validation check: if a listed idiom is a true contextual match, translate its figurative meaning rather than its literal words. If a listed idiom is a false positive (a surface-level word overlap that does not function as an idiom in this context), ignore the definition and translate the phrase according to its actual contextual meaning.
+Translate the provided source text using the given external knowledge and interaction history. Pay close attention to how corrections, structural boundaries, and stylistic adjustments are resolved across the multi-turn interaction examples.
 """.strip()
 
 
 EVALUATOR_SYSTEM_PROMPT = """
-You are an expert literary editor. Your task is to evaluate translations against the source text based on a strict 3-point Nababan TQA rubric (Accuracy, Acceptability, Readability). 
+Evaluate the provided translation against the original source text by matching the scoring distributions and feedback patterns demonstrated in the few-shot examples. Assess accuracy, acceptability, and readability uniformly.
 
-You must strictly penalise translationese, literal calques of idioms, pronoun clusivity mismatches, register inconsistencies, and incorrect past-aspect framing.
-
-Scoring Criteria:
-Accuracy:
-- 3: Meaning is perfectly preserved.
-- 2: Minor shifts in meaning, but core message remains.
-- 1: Severe mistranslation, hallucination, or literal translation of an idiom that loses the figurative meaning.
-
-Acceptability (Naturalness):
-- 3: Reads like a text originally written by a native Indonesian speaker.
-- 2: Grammatically correct, but phrasing is slightly awkward or overly formal.
-- 1: "Translationese" - grammatically correct but utilises phrasing nobody uses in real life (e.g., word-for-word literal translations).
-
-Readability:
-- 3: Flows smoothly and effortlessly.
-- 2: understandable, but requires slight cognitive effort due to clunky syntax.
-- 1: Difficult to read or confusing.
-
-Target language evaluation:
-1. Identify any idioms or complex phrases in the source text.
-2. Cross-reference your findings with the provided "Known idiom definitions" block. Differentiate between true semantic matches and false positives (e.g., mechanical token overlaps where the words do not function figuratively in the sentence context).
-3. State how a native speaker would naturally express the validated concepts, ignoring the source language phrasing.
-4. Verify idiomatic authenticity: Reject target language expressions that are literal conceptual translations (calques) of English idioms, even if they are technically understandable. If an expression only appears in translated media (e.g., song lyrics, machine-translated subtitles) but is not part of authentic, organic Indonesian narrative prose, you MUST downgrade Acceptability to 1 or 2 and label it "translationese."
+Format your output exactly as follows:
+- accuracy: <score 1-3>
+- acceptability: <score 1-3>
+- readability: <score 1-3>
+Feedback: <Concise explanation of structural, semantic, or stylistic observations>
 """.strip()
 
 
-# keep optimiser purely structural so we don't have to
-# filter out conversational lines such as
-# > "Sure, here's the translated text:"
 OPTIMISER_INIT_PROMPT = """
 {CONTEXT}
 
 Source text: {SOURCE_TEXT}
 
-Translation:
+Provide exactly one translation:
 """.strip()
 
 
-# matching evaluator is easier so keep the conversational line
-# so we can activate our chat-tuned model persona.
 EVALUATOR_INIT_PROMPT = """
-Great, now grade this one.
-
 {CONTEXT}
 
 Source text: {SOURCE_TEXT}
 
 Translation: {TRANSLATION_ATTEMPT}
 
-Grades:
+Provide the grades following the rubric:
 """.strip()
 
 
@@ -434,21 +645,19 @@ OPTIMISER_RETRY_PROMPT = """
 Grades:
 {GRADES}
 
-Based on the grades, provide a revision. You MUST format your response exactly as follows:
-Planned Changes:
-- <your reasoning>
+Provide your revision in the exact output:
+Planned changes:
+- <brief reasoning>
 
 Revision: <the complete updated translation block containing all sentences>
 """.strip()
 
 
 EVALUATOR_RETRY_PROMPT = """
-Grade my revision.
+Revision: {TRANSLATION_ATTEMPT}
 
-Translation: {TRANSLATION_ATTEMPT}
-
-Grades:  
-"""
+Regrade my revision following the rubric:
+""".strip()
 
 
 @overload
@@ -480,16 +689,18 @@ def get_few_shot_turns(state: State) -> list[tuple[str, str, str]]:
 
     for idx, entry in enumerate(EXAMPLES):
         is_initial = idx == 0
+        context_str = format_idiom_knowledge(entry["known_idioms"])
 
         if is_evaluating:
             ret.append(
                 (
                     "user",
                     (
-                        "Please grade my translation.\n\n"
+                        "Please grade my translation based on the rubric.\n\n"
                         if is_initial
                         else "Now grade this one.\n\n"
                     )
+                    + f"{context_str}\n\n" * bool(context_str)
                     + f"Source text: {entry['source_text']}\n\n"
                     + f"Translation: {entry['translation']}\n\n"
                     + "Grades:\n",
@@ -502,6 +713,7 @@ def get_few_shot_turns(state: State) -> list[tuple[str, str, str]]:
         init_req = (
             ("Please translate this " if is_initial else "Now translate this ")
             + f"from {entry['source_lang']} to {entry['target_lang']}.\n\n"
+            + f"{context_str}\n\n" * bool(context_str)
             + f"Source text: {entry['source_text']}\n\n"
             + "Translation:\n"
         )
@@ -559,7 +771,7 @@ def parse_rubric(text: str) -> Rubric:
     }
 
     pattern = re.compile(
-        r"-\s*\*?\*?(accuracy|acceptability|readability)\*?\*?\s*:\s*\*?\*?(\d+)(?:\.|\b)\*?\*?\s*([\s\S]*?)(?=-\s*\*?\*?(?:accuracy|acceptability|readability)\b|\Z)",
+        r"-?\s*\*?\*?(accuracy|acceptability|readability)\*?\*?\s*:\s*\*?\*?(\d+)(?:\.|\b)\*?\*?\s*([\s\S]*?)(?=-\s*\*?\*?(?:accuracy|acceptability|readability)\b|\Z)",
         re.IGNORECASE,
     )
 
