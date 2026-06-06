@@ -21,45 +21,31 @@
         llamaCppCuda = pkgs.llama-cpp.override {
           cudaSupport = true;
         };
-
-        pythonEnv = pkgs.python3.withPackages (ps:
-          with ps; [
-            aiohttp
-            pandas
-            ruff
-            (
-              scipy-stubs.overrideAttrs (oldAttrs: {
-                postPatch = "sed -i -E 's/uv_build[><=0-9.,]*/uv_build/g' pyproject.toml";
-              })
-            )
-            (sentence-transformers.overrideAttrs
-              (old: {
-                postInstall =
-                  (old.postInstall or "")
-                  + ''
-                    # https://github.com/microsoft/pylance-release/issues/7615
-                    rm -f $out/lib/python*/site-packages/transformers/py.typed
-                  '';
-              }))
-          ]);
       in {
-        packages = {inherit llamaCppCuda pythonEnv;};
+        packages = {inherit llamaCppCuda;};
 
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = [pkgs.makeWrapper];
 
           packages = [
-            pythonEnv
+            pkgs.python3
+            pkgs.uv
+
             llamaCppCuda
-            pkgs.llama-cpp
-            pkgs.cudatoolkit
-            pkgs.basedpyright
+
             pkgs.just
             pkgs.aria2
             pkgs.tmux
           ];
 
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+            pkgs.stdenv.cc.cc.lib
+            pkgs.cudatoolkit
+          ];
+
           shellHook = ''
+            export LD_LIBRARY_PATH=/run/opengl-driver/lib:$LD_LIBRARY_PATH
+
             echo "Environment loaded with CUDA support."
             echo "Python version: $(python --version)"
             llama-server --version
