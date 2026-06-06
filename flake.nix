@@ -16,10 +16,7 @@
         pkgs = import nixpkgs {
           inherit system;
           config.allowUnfree = true;
-        };
-
-        llamaCppCuda = pkgs.llama-cpp.override {
-          cudaSupport = true;
+          config.cudaSupport = true;
         };
 
         pythonEnv = pkgs.python3.withPackages (ps:
@@ -43,14 +40,14 @@
               }))
           ]);
       in {
-        packages = {inherit llamaCppCuda pythonEnv;};
+        packages = {inherit pythonEnv;};
 
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = [pkgs.makeWrapper];
 
           packages = [
             pythonEnv
-            llamaCppCuda
+            pkgs.llama-cpp
             pkgs.cudatoolkit
             pkgs.basedpyright
             pkgs.just
