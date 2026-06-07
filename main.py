@@ -1164,9 +1164,6 @@ class FileProcessor:
                 await handler(state)
                 _ = self.csv_file and self.csv_file.flush()
 
-                # let llama-server disconnect the previous connection
-                await asyncio.sleep(0.1)
-
             if self.log_file:
                 loggable_state = {
                     k: v for k, v in state.items() if k not in ("client", "csv_writer")

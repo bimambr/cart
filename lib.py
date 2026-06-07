@@ -303,6 +303,8 @@ async def stream_response(response: aiohttp.ClientResponse) -> str:
         print()
 
     LOGGER.info("Completed streaming response. Last chunk: %s", json_data)
+    # let llama-server disconnect
+    await asyncio.sleep(0.1)
     return full_response.strip()
 
 
