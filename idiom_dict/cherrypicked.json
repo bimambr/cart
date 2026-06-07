@@ -1,10 +1,15 @@
 {
-  "touch to the quick": {
+  "cut (someone) to the quick": {
     "senses": [
-      "to affect or move deeply; to cause upset or distress to; to influence strongly",
-      "to get to the nub or heart of (a matter); to make a particularly telling remark or observation"
+      "to hurt someone's feelings a lot"
     ],
-    "source": "https://www.oed.com/dictionary/touch_v?tl=true#1211424970"
+    "source": "https://dictionary.cambridge.org/dictionary/english/cut-to-the-quick"
+  },
+  "cut/sting/pierce somebody to the quick": {
+    "senses": [
+      "if a remark or criticism cuts you to the quick, it makes you feel extremely upset"
+    ],
+    "source": "https://www.ldoceonline.com/dictionary/cut-sting-pierce-somebody-to-the-quick"
   },
   "confidence trickster": {
     "senses": [
@@ -22,7 +27,10 @@
     "senses": [
       "to ignore what is happening around you and give all your attention to your private thoughts"
     ],
-    "source": "https://www.ldoceonline.com/dictionary/retreat-into-yourself-your-shell-fantasy-etc"
+    "source": "https://www.ldoceonline.com/dictionary/retreat-into-yourself-your-shell-fantasy-etc",
+    "translations": {
+      "jp": "精神の思考に没入する"
+    }
   },
   "hash something out": {
     "senses": [
