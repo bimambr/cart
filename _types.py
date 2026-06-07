@@ -93,9 +93,20 @@ class IdiomEntry(TypedDict):
     translations: dict[str, str]
 
 
+class IdiomMatchCandidate(TypedDict):
+    phrase_idx: int
+    base_score: float
+    context_score: float
+    rerank_score: float
+    final_score: float
+
+
 class IdiomMatchResult(IdiomEntry):
     matched_chunk: str
-    score: float
+    base_score: float
+    context_score: float
+    rerank_score: float
+    final_score: float
 
 
 class ChatTemplateKwargs(TypedDict, total=False):

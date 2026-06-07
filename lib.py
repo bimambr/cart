@@ -32,7 +32,14 @@ import torch
 from sentence_transformers import CrossEncoder, SentenceTransformer, util
 from spacy.lang.en.stop_words import STOP_WORDS
 
-from _types import CLIArgs, IdiomEntry, IdiomMatchResult, Payload, StreamingResponse
+from _types import (
+    CLIArgs,
+    IdiomEntry,
+    IdiomMatchCandidate,
+    IdiomMatchResult,
+    Payload,
+    StreamingResponse,
+)
 
 LOGGER = logging.getLogger("lib")
 
@@ -239,7 +246,7 @@ class Embedder:
             )
             rerank_scores = await asyncio.to_thread(self.reranker.predict, rerank_pairs)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
             cross_scores: list[float] = np.asarray(rerank_scores).ravel().tolist()
-            valid_candidates: list[tuple[int, float]] = []
+            valid_candidates: list[IdiomMatchCandidate] = []
 
             for i, (p_idx, base_phrase_score) in enumerate(candidates):
                 bi_context_score = context_scores[i]
@@ -250,14 +257,22 @@ class Embedder:
                     + (bi_context_score * 0.4)
                     + (normalised * 0.4)
                 )
-                valid_candidates.append((p_idx, hybrid_score))
+                valid_candidates.append(
+                    IdiomMatchCandidate(
+                        phrase_idx=p_idx,
+                        final_score=hybrid_score,
+                        base_score=base_phrase_score,
+                        context_score=bi_context_score,
+                        rerank_score=cross_phrase_score,
+                    )
+                )
 
-            valid_candidates.sort(key=lambda x: x[1], reverse=True)
-            best_phrase_idx, final_score = valid_candidates[0]
-            if final_score < MIN_FINAL_SCORE:
+            valid_candidates.sort(key=lambda x: x["final_score"], reverse=True)
+            best = valid_candidates[0]
+            if best["final_score"] < MIN_FINAL_SCORE:
                 continue
 
-            idiom_key = self.phrases[best_phrase_idx]
+            idiom_key = self.phrases[best["phrase_idx"]]
             entry = self.idioms[idiom_key]
             master_key = entry["master_key"]
 
@@ -270,13 +285,16 @@ class Embedder:
                     senses=entry.get("senses", []),
                     translations=entry.get("translations", {}),
                     matched_chunk=current_chunk,
-                    score=round(final_score, 3),
+                    base_score=round(best["base_score"], 3),
+                    context_score=round(best["context_score"], 3),
+                    rerank_score=round(best["rerank_score"], 3),
+                    final_score=round(best["final_score"], 3),
                     master_key=master_key,
                 )
             )
             found_master_keys.add(master_key)
 
-        results.sort(key=lambda x: x["score"], reverse=True)
+        results.sort(key=lambda x: x["final_score"], reverse=True)
         LOGGER.info("Found idiom matches: \n%s", json.dumps(results, indent=4))
         return results
 
