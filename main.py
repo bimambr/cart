@@ -614,10 +614,9 @@ EVALUATOR_SYSTEM_PROMPT = """
 Evaluate the provided translation against the original source text by matching the scoring distributions and feedback patterns demonstrated in the few-shot examples. Assess accuracy, acceptability, and readability uniformly.
 
 Format your output exactly as follows:
-- accuracy: <score 1-3>
-- acceptability: <score 1-3>
-- readability: <score 1-3>
-Feedback: <Concise explanation of structural, semantic, or stylistic observations>
+- accuracy: <score 1-3>. <feedback>
+- acceptability: <score 1-3>. <feedback>
+- readability: <score 1-3>. <feedback>
 """.strip()
 
 
