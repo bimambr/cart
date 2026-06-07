@@ -30,6 +30,7 @@ import aiohttp
 import numpy as np
 import torch
 from sentence_transformers import CrossEncoder, SentenceTransformer, util
+from spacy.lang.en.stop_words import STOP_WORDS
 
 from _types import CLIArgs, IdiomEntry, IdiomMatchResult, Payload, StreamingResponse
 
@@ -51,15 +52,21 @@ DEFAULT_REFINEMENT_ITERATIONS = 3
 MAX_REFINEMENT_ITERATIONS = 5
 TIMEOUT = 240
 VECTORISED_DICTIONARY_PATH = "vectorised_dict.pkl"
+PUNCTUATIONS = ".,!?\"'()[]{}"
+MIN_RETRIEVAL_SCORE = 0.1
+MIN_FINAL_SCORE = 0.3
+TOP_K = 5
+MIN_SINGLE_TOKEN_LENGTH = 6
+MAX_TOKEN_SPAN_PADDING = 4
 
 
 class LoadedEmbedder(Protocol):
     bi_model: str
     rerank_model: str
-    idiom_embeddings: dict[str, IdiomEntry]
+    idioms: dict[str, IdiomEntry]
     phrases: list[str]
-    phrase_lens: torch.Tensor
-    dict_embeddings: torch.Tensor
+    phrase_embeddings: torch.Tensor
+    sense_embeddings: torch.Tensor
     embedder: SentenceTransformer
     reranker: CrossEncoder
 
@@ -72,20 +79,21 @@ class Embedder:
         self.bi_model = bi_model
         self.rerank_model = rerank_model
 
-        self.idiom_embeddings: dict[str, IdiomEntry] | None = None
+        self.idioms: dict[str, IdiomEntry] | None = None
         self.phrases: list[str] | None = None
-        self.phrase_lens: torch.Tensor | None = None
-        self.dict_embeddings: torch.Tensor | None = None
+        self.phrase_embeddings: torch.Tensor | None = None
+        self.sense_embeddings: torch.Tensor | None = None
         self.embedder: SentenceTransformer | None = None
         self.reranker: CrossEncoder | None = None
+        self.lexical_index: dict[str, list[int]] = {}
 
     @staticmethod
     def is_loaded(obj: "Embedder") -> TypeGuard[LoadedEmbedder]:
         return (
-            obj.idiom_embeddings is not None
+            obj.idioms is not None
             and obj.phrases is not None
-            and obj.phrase_lens is not None
-            and obj.dict_embeddings is not None
+            and obj.phrase_embeddings is not None
+            and obj.sense_embeddings is not None
             and obj.embedder is not None
             and obj.reranker is not None
         )
@@ -99,68 +107,58 @@ class Embedder:
 
         with open(VECTORISED_DICTIONARY_PATH, "rb") as f:
             _vector_data = pickle.load(f)  # pyright: ignore[reportAny]
-            self.idiom_embeddings = cast(
-                "dict[str, IdiomEntry]", _vector_data["dictionary"]
-            )
+            self.idioms = cast("dict[str, IdiomEntry]", _vector_data["dictionary"])
             self.phrases = cast("list[str]", _vector_data["phrases"])
-            self.dict_embeddings = cast(torch.Tensor, _vector_data["embeddings"])
-            self.phrase_lens = torch.tensor(  # pyright: ignore[reportPrivateImportUsage]
-                [len(p.split()) for p in self.phrases],
-                dtype=torch.long,  # pyright: ignore[reportPrivateImportUsage]
+            self.phrase_embeddings = cast(
+                torch.Tensor, _vector_data["phrase_embeddings"]
             )
+            self.sense_embeddings = cast(torch.Tensor, _vector_data["sense_embeddings"])
 
         self.embedder = SentenceTransformer(self.bi_model)
         self.reranker = CrossEncoder(self.rerank_model)
+
+        self.build_lexical_index()
+
+    def build_lexical_index(self) -> None:
+        if not Embedder.is_loaded(self):
+            return
+
+        for idx, phrase in enumerate(self.phrases):
+            tokens = [t.strip(PUNCTUATIONS) for t in phrase.lower().split()]
+            core_tokens = set(tokens) - STOP_WORDS
+            for token in core_tokens:
+                clean_token = token.strip(PUNCTUATIONS)
+                if len(clean_token) < 2:
+                    continue
+                self.lexical_index.setdefault(clean_token, []).append(idx)
 
     def get_lexical_matches(self, excerpt: str) -> list[str]:
         if not Embedder.is_loaded(self):
             return []
 
-        stop_words = {
-            "to",
-            "someone",
-            "somebody",
-            "something",
-            "oneself",
-            "a",
-            "an",
-            "the",
-            "in",
-            "on",
-            "at",
-            "out",
-            "up",
-            "my",
-            "me",
-            "your",
-            "his",
-            "her",
-            "their",
-            "it",
-            "and",
-            "what",
-            "when",
-            "so",
-            "but",
-            "about",
-            "from",
-            "for",
-            "while",
-        }
         words = excerpt.lower().split()
-        normalised_words = [w.lower().strip(".,!?\"'()[]{}") for w in words]
+        normalised_words = [w.lower().strip(PUNCTUATIONS) for w in words]
         word_set = set(normalised_words)
+        candidate_phrase_indices: set[int] = {
+            idx
+            for w in word_set
+            if w in self.lexical_index
+            for idx in self.lexical_index[w]
+        }
         ret: set[str] = set()
 
-        for phrase in self.phrases:
-            phrase_tokens = set(phrase.lower().split())
-            core_tokens = phrase_tokens - stop_words
+        for phrase_idx in candidate_phrase_indices:
+            phrase = self.phrases[phrase_idx]
+            phrase_tokens = set([t.strip(PUNCTUATIONS) for t in phrase.lower().split()])
+            core_tokens = phrase_tokens - STOP_WORDS
 
             if not (core_tokens and core_tokens.issubset(word_set)):
                 continue
 
-            # min char length for a single-word match
-            if len(core_tokens) < 2 and len(list(core_tokens)[0]) < 6:
+            if (
+                len(core_tokens) < 2
+                and len(list(core_tokens)[0]) < MIN_SINGLE_TOKEN_LENGTH
+            ):
                 continue
 
             indices = [i for i, w in enumerate(normalised_words) if w in core_tokens]
@@ -170,7 +168,7 @@ class Embedder:
             min_idx = min(indices)
             max_idx = max(indices)
 
-            if (max_idx - min_idx) > (len(core_tokens) + 4):
+            if (max_idx - min_idx) > (len(core_tokens) + MAX_TOKEN_SPAN_PADDING):
                 continue
 
             ret.add(" ".join(words[min_idx : max_idx + 1]))
@@ -193,7 +191,7 @@ class Embedder:
             self.embedder.encode(  # pyright: ignore[reportUnknownMemberType, reportCallIssue]
                 excerpt,
                 convert_to_tensor=True,
-                device=self.dict_embeddings.device,  # pyright: ignore[reportArgumentType]
+                device=self.phrase_embeddings.device,  # pyright: ignore[reportArgumentType]
             ),
         )
         phrase_embeddings = cast(
@@ -201,12 +199,12 @@ class Embedder:
             self.embedder.encode(  # pyright: ignore[reportUnknownMemberType, reportCallIssue]
                 phrases,
                 convert_to_tensor=True,
-                device=self.dict_embeddings.device,  # pyright: ignore[reportArgumentType]
+                device=self.phrase_embeddings.device,  # pyright: ignore[reportArgumentType]
             ),
         )
 
-        cosine_scores = util.cos_sim(phrase_embeddings, self.dict_embeddings)  # pyright: ignore[reportUnknownMemberType]
-        top_scores, top_indices = torch.topk(cosine_scores, k=5, dim=1)  # pyright: ignore[reportPrivateImportUsage]
+        cosine_scores = util.cos_sim(phrase_embeddings, self.phrase_embeddings)  # pyright: ignore[reportUnknownMemberType]
+        top_scores, top_indices = torch.topk(cosine_scores, k=TOP_K, dim=1)  # pyright: ignore[reportPrivateImportUsage]
         results: list[IdiomMatchResult] = []
         found_master_keys: set[str] = set()
 
@@ -214,37 +212,29 @@ class Embedder:
             current_chunk = phrases[idx]
 
             candidates: list[tuple[int, float]] = []
-            definitions: list[str] = []
             rerank_pairs: list[list[str]] = []
 
             for score_tensor, phrase_idx_tensor in zip(score_row, phrase_idx_row):
                 score = float(score_tensor)
-                if score < 0.1:
+                if score < MIN_RETRIEVAL_SCORE:
                     continue
 
                 phrase_idx = int(phrase_idx_tensor)
                 idiom_key = self.phrases[phrase_idx]
-                entry = self.idiom_embeddings[idiom_key]
+                entry = self.idioms[idiom_key]
                 senses = " ".join(entry.get("senses", []))
 
                 candidates.append((phrase_idx, score))
-                definitions.append(senses if senses.strip() else idiom_key)
                 rerank_pairs.append([current_chunk, f"{idiom_key} : {senses}"])
 
             if not candidates:
                 continue
 
-            def_embeddings = cast(
-                torch.Tensor,
-                self.embedder.encode(  # pyright: ignore[reportUnknownMemberType, reportCallIssue]
-                    definitions,
-                    convert_to_tensor=True,
-                    device=self.dict_embeddings.device,  # pyright: ignore[reportArgumentType]
-                ),
-            )
+            candidate_indices = [p_idx for p_idx, _ in candidates]
+            sense_embeddings = self.sense_embeddings[candidate_indices]
             context_scores = cast(
                 "list[float]",
-                util.cos_sim(excerpt_embedding, def_embeddings).flatten().tolist(),  # pyright: ignore[reportUnknownMemberType]
+                util.cos_sim(excerpt_embedding, sense_embeddings).flatten().tolist(),  # pyright: ignore[reportUnknownMemberType]
             )
             rerank_scores = await asyncio.to_thread(self.reranker.predict, rerank_pairs)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
             cross_scores: list[float] = np.asarray(rerank_scores).ravel().tolist()
@@ -263,11 +253,11 @@ class Embedder:
 
             valid_candidates.sort(key=lambda x: x[1], reverse=True)
             best_phrase_idx, final_score = valid_candidates[0]
-            if final_score < 0.3:
+            if final_score < MIN_FINAL_SCORE:
                 continue
 
             idiom_key = self.phrases[best_phrase_idx]
-            entry = self.idiom_embeddings[idiom_key]
+            entry = self.idioms[idiom_key]
             master_key = entry["master_key"]
 
             if master_key in found_master_keys:
@@ -355,16 +345,21 @@ class Embedder:
                 normalised_dict[variant] = {**v, "idiom": variant}
 
         phrases = list(normalised_dict.keys())
+        senses = [
+            " ".join(v.get("senses", [])) or k for k, v in normalised_dict.items()
+        ]
         LOGGER.info("Loading model and computing %d embeddings", len(normalised_dict))
         model = SentenceTransformer(self.bi_model)
-        embeddings_tensor = model.encode(phrases, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType]
+        phrase_embeddings = model.encode(phrases, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType]
+        sense_embeddings = model.encode(senses, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType]
 
         with open(VECTORISED_DICTIONARY_PATH, "wb") as f:
             pickle.dump(
                 {
                     "dictionary": normalised_dict,
                     "phrases": phrases,
-                    "embeddings": embeddings_tensor,
+                    "phrase_embeddings": phrase_embeddings,
+                    "sense_embeddings": sense_embeddings,
                 },
                 f,
                 protocol=pickle.HIGHEST_PROTOCOL,
