@@ -34,6 +34,7 @@ from _types import (
     Corpus,
     ExampleEntry,
     IdiomEntry,
+    IdiomMatchResult,
     Rubric,
     RubricEntry,
     SourceTextEntry,
@@ -605,6 +606,26 @@ def format_rubric(rubric: Rubric) -> str:
 """.strip()
 
 
+IDIOM_EXTRACTION_GRAMMAR = """
+root        ::= "[" string-list "]"
+string-list ::= (string (", " string)*)?
+string      ::= "\"" [^"\\]* "\""   
+""".strip()
+
+
+IDIOM_EXTRACTION_SYSTEM_PROMPT = """
+Extract idioms, fixed metaphorical phrases, or non-compositional expressions present within the provided text as a JSON list. Do not explain. No code blocks.
+
+Constraints:
+1. Extract the phrase exactly as it appears in the text.
+2. Broaden your criteria: include physical expressions used metaphorically and idiomatic word pairings.
+3. Bias toward over-extraction. If a phrase is even slightly figurative or non-literal, extract it. The downstream system will handle filtering; it is critical that you do not miss any candidate expressions.
+4. Output a valid flat JSON array of strings: ["extracted_phrase_1", "extracted_phrase_2"]
+5. If absolutely no figurative expressions are present, output exactly: []
+6. Provide NO explanations and NO conversational filler.
+"""
+
+
 OPTIMISER_SYSTEM_PROMPT = """
 Translate the provided source text using the given external knowledge and interaction history. Pay close attention to how corrections, structural boundaries, and stylistic adjustments are resolved across the multi-turn interaction examples.
 """.strip()
@@ -1088,6 +1109,32 @@ class FileProcessor:
             self.log_file = None
         self.csv_writer = None
 
+    async def _get_idiom_matches(self, excerpt: str) -> list[IdiomMatchResult]:
+        if ARGS.baseline:
+            return []
+
+        output = await run_inference(
+            self.client,
+            ARGS.endpoint,
+            ARGS.model,
+            0.0,
+            SEEDS[0],
+            0,
+            IDIOM_EXTRACTION_GRAMMAR,
+            True,
+            False,
+            [
+                ("system", IDIOM_EXTRACTION_SYSTEM_PROMPT, "system"),
+                ("user", excerpt, "user"),
+            ],
+        )
+
+        if not (extracted_phrases := cast("list[str]", json.loads(output))):
+            return []
+
+        LOGGER.info("Extracted idioms: %s", extracted_phrases)
+        return await self.embedder.get_idiom_definitions(excerpt, extracted_phrases)
+
     async def process(self) -> None:
         if not self.input_file.exists():
             LOGGER.error("Input file '%s' does not exist.", self.input_file)
@@ -1122,9 +1169,7 @@ class FileProcessor:
                 "id": text_idx + 1,
                 "external_knowledge": input_json.get("external_knowledge", [])
                 + text.get("external_knowledge", []),
-                "idiom_matches": await self.embedder.get_idiom_definitions(
-                    text["content"]
-                ),
+                "idiom_matches": await self._get_idiom_matches(text["content"]),
             }
 
             await self._process_text(source_text)
@@ -1176,7 +1221,7 @@ class FileProcessor:
 async def main():
     LOGGER.info("Starting translation experiment...")
 
-    embedder = Embedder(ARGS.embedding_model)
+    embedder = Embedder(ARGS.embedding_model, ARGS.rerank_model)
 
     if ARGS.vectorise:
         embedder.generate_vectors()

@@ -27,8 +27,9 @@ from pathlib import Path
 from typing import Protocol, TypeGuard, TypeVar, cast, final
 
 import aiohttp
+import numpy as np
 import torch
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import CrossEncoder, SentenceTransformer, util
 
 from _types import CLIArgs, IdiomEntry, IdiomMatchResult, Payload, StreamingResponse
 
@@ -43,6 +44,7 @@ class Bail(Exception): ...
 ENDPOINT = "http://localhost:8127/v1/chat/completions"
 MODEL_NAME = "gemma-4-E2B-it-GGUF"
 EMBED_MODEL_NAME = "./all-MiniLM-L6-v2"
+RERANK_MODEL_NAME = "./mixedbread-ai/mxbai-rerank-xsmall-v1"
 DEFAULT_N_ITERATIONS = 5
 MAX_N_ITERATIONS = 10
 DEFAULT_REFINEMENT_ITERATIONS = 3
@@ -52,28 +54,30 @@ VECTORISED_DICTIONARY_PATH = "vectorised_dict.pkl"
 
 
 class LoadedEmbedder(Protocol):
-    model: str
+    bi_model: str
+    rerank_model: str
     idiom_embeddings: dict[str, IdiomEntry]
     phrases: list[str]
     phrase_lens: torch.Tensor
     dict_embeddings: torch.Tensor
-    embedding_model: SentenceTransformer
+    embedder: SentenceTransformer
+    reranker: CrossEncoder
 
-    def compute_similarities(
-        self, chunks: list[str]
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]: ...
+    def get_lexical_matches(self, excerpt: str) -> list[str]: ...
 
 
 @final
 class Embedder:
-    def __init__(self, model: str) -> None:
-        self.model = model
+    def __init__(self, bi_model: str, rerank_model: str) -> None:
+        self.bi_model = bi_model
+        self.rerank_model = rerank_model
 
         self.idiom_embeddings: dict[str, IdiomEntry] | None = None
         self.phrases: list[str] | None = None
         self.phrase_lens: torch.Tensor | None = None
         self.dict_embeddings: torch.Tensor | None = None
-        self.embedding_model: SentenceTransformer | None = None
+        self.embedder: SentenceTransformer | None = None
+        self.reranker: CrossEncoder | None = None
 
     @staticmethod
     def is_loaded(obj: "Embedder") -> TypeGuard[LoadedEmbedder]:
@@ -81,7 +85,8 @@ class Embedder:
             obj.idiom_embeddings is not None
             and obj.phrases is not None
             and obj.dict_embeddings is not None
-            and obj.embedding_model is not None
+            and obj.embedder is not None
+            and obj.reranker is not None
         )
 
     def load_vectors(self) -> None:
@@ -103,83 +108,189 @@ class Embedder:
                 dtype=torch.long,  # pyright: ignore[reportPrivateImportUsage]
             )
 
-        self.embedding_model = SentenceTransformer(self.model)
+        self.embedder = SentenceTransformer(self.bi_model)
+        self.reranker = CrossEncoder(self.rerank_model)
 
-    @staticmethod
-    def _get_n_gram_windows(
-        text: str, min_size: int = 2, max_size: int = 12
-    ) -> list[str]:
-        words = text.lower().split()
-        windows: set[str] = set()
-
-        for w_size in range(min_size, max_size + 1):
-            for i in range(len(words) - w_size + 1):
-                chunk = words[i : i + w_size]
-                windows.add(" ".join(chunk))
-
-        return list(windows)
-
-    def compute_similarities(
-        self, chunks: list[str]
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        assert Embedder.is_loaded(self)
-        chunk_embeddings = self.embedding_model.encode(chunks, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType]
-        cosine_scores = util.cos_sim(chunk_embeddings, self.dict_embeddings)  # pyright: ignore[reportUnknownMemberType]
-        device = cosine_scores.device
-        chunk_lens = torch.tensor(  # pyright: ignore[reportPrivateImportUsage]
-            [len(c.split()) for c in chunks],
-            dtype=torch.long,  # pyright: ignore[reportPrivateImportUsage]
-            device=device,
-        )
-        min_lens = torch.minimum(  # pyright: ignore[reportPrivateImportUsage]
-            chunk_lens.unsqueeze(1), self.phrase_lens.unsqueeze(0).to(device)
-        )
-        threshold_lookup = torch.tensor(  # pyright: ignore[reportPrivateImportUsage]
-            [1.0, 1.0, 0.8, 0.8, 0.7, 0.6, 0.55],
-            dtype=torch.float32,  # pyright: ignore[reportPrivateImportUsage]
-            device=device,
-        )
-        clamped_lens = torch.clamp(min_lens, max=6)  # pyright: ignore[reportPrivateImportUsage]
-        dynamic_thresholds = threshold_lookup[clamped_lens]
-        match_coords = torch.where(cosine_scores >= dynamic_thresholds)  # pyright: ignore[reportPrivateImportUsage]
-        chunk_indices, phrase_indices = match_coords
-        scores = cosine_scores[chunk_indices, phrase_indices]
-        sort_idx = torch.argsort(scores, descending=True)  # pyright: ignore[reportPrivateImportUsage]
-        return chunk_indices[sort_idx], phrase_indices[sort_idx], scores[sort_idx]
-
-    async def get_idiom_definitions(self, excerpt: str) -> list[IdiomMatchResult]:
+    def get_lexical_matches(self, excerpt: str) -> list[str]:
         if not Embedder.is_loaded(self):
             return []
 
-        if not (chunks := Embedder._get_n_gram_windows(excerpt)):
+        stop_words = {
+            "to",
+            "someone",
+            "somebody",
+            "something",
+            "oneself",
+            "a",
+            "an",
+            "the",
+            "in",
+            "on",
+            "at",
+            "out",
+            "up",
+            "my",
+            "me",
+            "your",
+            "his",
+            "her",
+            "their",
+            "it",
+            "and",
+            "what",
+            "when",
+            "so",
+            "but",
+            "about",
+            "from",
+            "for",
+            "while",
+        }
+        words = excerpt.lower().split()
+        normalised_words = [w.lower().strip(".,!?\"'()[]{}") for w in words]
+        word_set = set(normalised_words)
+        ret: set[str] = set()
+
+        for phrase in self.phrases:
+            phrase_tokens = set(phrase.lower().split())
+            core_tokens = phrase_tokens - stop_words
+
+            if not (core_tokens and core_tokens.issubset(word_set)):
+                continue
+
+            # min char length for a single-word match
+            if len(core_tokens) < 2 and len(list(core_tokens)[0]) < 6:
+                continue
+
+            indices = [i for i, w in enumerate(normalised_words) if w in core_tokens]
+            if not indices:
+                continue
+
+            min_idx = min(indices)
+            max_idx = max(indices)
+
+            if (max_idx - min_idx) > (len(core_tokens) + 4):
+                continue
+
+            ret.add(" ".join(words[min_idx : max_idx + 1]))
+
+        LOGGER.info("Lexical matches: %s", ret)
+        return [*ret]
+
+    async def get_idiom_definitions(
+        self, excerpt: str, extracted_phrases: list[str]
+    ) -> list[IdiomMatchResult]:
+        if not Embedder.is_loaded(self):
             return []
 
-        chunk_indices, phrase_indices, scores = await asyncio.to_thread(
-            self.compute_similarities, chunks
+        phrases = extracted_phrases + self.get_lexical_matches(excerpt)
+        if not phrases:
+            return []
+
+        excerpt_embedding = cast(
+            torch.Tensor,
+            self.embedder.encode(  # pyright: ignore[reportUnknownMemberType, reportCallIssue]
+                excerpt,
+                convert_to_tensor=True,
+                device=self.dict_embeddings.device,  # pyright: ignore[reportArgumentType]
+            ),
+        )
+        phrase_embeddings = cast(
+            torch.Tensor,
+            self.embedder.encode(  # pyright: ignore[reportUnknownMemberType, reportCallIssue]
+                phrases,
+                convert_to_tensor=True,
+                device=self.dict_embeddings.device,  # pyright: ignore[reportArgumentType]
+            ),
         )
 
+        cosine_scores = util.cos_sim(phrase_embeddings, self.dict_embeddings)  # pyright: ignore[reportUnknownMemberType]
+        top_scores, top_indices = torch.topk(cosine_scores, k=5, dim=1)  # pyright: ignore[reportPrivateImportUsage]
         results: list[IdiomMatchResult] = []
         found_master_keys: set[str] = set()
 
-        c_vals: list[int] = chunk_indices.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        p_vals: list[int] = phrase_indices.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        s_vals: list[float] = scores.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        for idx, (phrase_idx_row, score_row) in enumerate(zip(top_indices, top_scores)):
+            current_chunk = phrases[idx]
 
-        for chunk_idx, phrase_idx, score in zip(c_vals, p_vals, s_vals):
-            idiom_key = self.phrases[phrase_idx]
+            candidates: list[tuple[int, float]] = []
+            definitions: list[str] = []
+            rerank_pairs: list[list[str]] = []
+
+            for score_tensor, phrase_idx_tensor in zip(score_row, phrase_idx_row):
+                score = float(score_tensor)
+                if score < 0.1:
+                    continue
+
+                phrase_idx = int(phrase_idx_tensor)
+                idiom_key = self.phrases[phrase_idx]
+                entry = self.idiom_embeddings[idiom_key]
+                senses = " ".join(entry.get("senses", []))
+
+                candidates.append((phrase_idx, score))
+                definitions.append(senses if senses.strip() else idiom_key)
+                rerank_pairs.append([current_chunk, f"{idiom_key} : {senses}"])
+
+            if not candidates:
+                continue
+
+            def_embeddings = cast(
+                torch.Tensor,
+                self.embedder.encode(  # pyright: ignore[reportUnknownMemberType, reportCallIssue]
+                    definitions,
+                    convert_to_tensor=True,
+                    device=self.dict_embeddings.device,  # pyright: ignore[reportArgumentType]
+                ),
+            )
+            context_scores = cast(
+                "list[float]",
+                util.cos_sim(excerpt_embedding, def_embeddings).flatten().tolist(),  # pyright: ignore[reportUnknownMemberType]
+            )
+            rerank_scores = await asyncio.to_thread(self.reranker.predict, rerank_pairs)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+            cross_scores: list[float] = np.asarray(rerank_scores).ravel().tolist()
+            valid_candidates: list[tuple[int, float]] = []
+
+            for i, (p_idx, base_phrase_score) in enumerate(candidates):
+                bi_context_score = context_scores[i]
+                cross_phrase_score = cross_scores[i]
+                normalised = 1.0 / (1.0 + cast(float, np.exp(-cross_phrase_score)))
+                hybrid_score = (
+                    (base_phrase_score * 0.2)
+                    + (bi_context_score * 0.4)
+                    + (normalised * 0.4)
+                )
+                valid_candidates.append((p_idx, hybrid_score))
+
+            valid_candidates.sort(key=lambda x: x[1], reverse=True)
+            best_phrase_idx, final_score = valid_candidates[0]
+            if final_score < 0.3:
+                continue
+
+            idiom_key = self.phrases[best_phrase_idx]
             entry = self.idiom_embeddings[idiom_key]
             master_key = entry["master_key"]
 
             if master_key in found_master_keys:
                 continue
 
+            raw_senses = entry.get("senses", [])
+            filtered_senses = raw_senses
+
+            if len(raw_senses) > 1:
+                sense_pairs = [[excerpt, sense] for sense in raw_senses]
+                sense_scores = await asyncio.to_thread(
+                    self.reranker.predict,  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+                    sense_pairs,
+                )
+                best_sense_idx = int(np.argmax(np.asarray(sense_scores).ravel()))
+                filtered_senses = [raw_senses[best_sense_idx]]
+
             results.append(
                 IdiomMatchResult(
                     idiom=idiom_key,
-                    senses=entry.get("senses", []),
+                    senses=filtered_senses,
                     translations=entry.get("translations", {}),
-                    matched_chunk=chunks[chunk_idx],
-                    score=round(score, 3),
+                    matched_chunk=current_chunk,
+                    score=round(final_score, 3),
                     master_key=master_key,
                 )
             )
@@ -256,7 +367,7 @@ class Embedder:
 
         phrases = list(normalised_dict.keys())
         LOGGER.info("Loading model and computing %d embeddings", len(normalised_dict))
-        model = SentenceTransformer(self.model)
+        model = SentenceTransformer(self.bi_model)
         embeddings_tensor = model.encode(phrases, convert_to_tensor=True)  # pyright: ignore[reportUnknownMemberType]
 
         with open(VECTORISED_DICTIONARY_PATH, "wb") as f:
@@ -317,6 +428,7 @@ async def run_inference(
     timeout: float,
     grammar: str | None = None,
     cache_prompt: bool = False,
+    enable_thinking: bool = True,
     messages: list[tuple[str, str, str]] | None = None,
 ) -> str:
     LOGGER.info("Hitting %s with temp=%f, seed=%d", endpoint, temperature, seed)
@@ -337,7 +449,8 @@ async def run_inference(
                 "seed": seed,
                 "messages": formatted_messages,
                 "cache_prompt": cache_prompt,
-                "thinking_budget": "high",
+                "reasoning_budget": -1 if enable_thinking else 0,
+                "chat_template_kwargs": {"enable_thinking": enable_thinking},
             }
 
             if grammar is not None:
@@ -425,6 +538,11 @@ def get_parsed_args() -> type[CLIArgs]:
         "--embedding-model",
         default=EMBED_MODEL_NAME,
         help=f"Embedding model to use (default: {EMBED_MODEL_NAME})",
+    )
+    _ = parser.add_argument(
+        "--rerank-model",
+        default=RERANK_MODEL_NAME,
+        help=f"Rerank model to use (default: {RERANK_MODEL_NAME})",
     )
     _ = parser.add_argument(
         "--iterations",
@@ -515,6 +633,7 @@ def get_parsed_args() -> type[CLIArgs]:
         parsed.evaluator_temperature,
     )
     LOGGER.info("Embedding model: %s", parsed.embedding_model)
+    LOGGER.info("Rerank model: %s", parsed.rerank_model)
     LOGGER.info("Iterations per seed: %d", parsed.iterations)
     LOGGER.info("Refinement iterations: %d", parsed.refinement_iterations)
     LOGGER.info("Input files: %s", parsed.input)

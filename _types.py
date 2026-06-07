@@ -98,6 +98,10 @@ class IdiomMatchResult(IdiomEntry):
     score: float
 
 
+class ChatTemplateKwargs(TypedDict, total=False):
+    enable_thinking: bool
+
+
 class Payload(TypedDict, total=False):
     model: str
     stream: bool
@@ -106,7 +110,8 @@ class Payload(TypedDict, total=False):
     messages: list[dict[str, str]]
     cache_prompt: bool
     grammar: str
-    thinking_budget: Literal["low", "high"]
+    reasoning_budget: int
+    chat_template_kwargs: ChatTemplateKwargs
 
 
 class StreamingResponse(TypedDict, total=False):
@@ -130,6 +135,7 @@ class CLIArgs:
     optimiser_init_temperature: float
     optimiser_retry_temperature: float
     embedding_model: str
+    rerank_model: str
     iterations: int
     input: str
     timeout: int

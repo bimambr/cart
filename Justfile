@@ -2,7 +2,8 @@ set shell := ["bash", "-c"]
 
 model_url := "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q8_0.gguf?download=true"
 model_file := "gemma-4-E2B-it-Q8_0.gguf"
-embed_model_file := "all-MiniLM-L6-v2"
+embedder_file := "all-MiniLM-L6-v2"
+reranker_file := "mixedbread-ai/mxbai-rerank-xsmall-v1"
 port := "8127"
 ctx := "32768"
 
@@ -18,11 +19,18 @@ setup:
         echo "Model already exists."; \
     fi
     @echo "Checking for embedding model..."
-    @if [ ! -d {{embed_model_file}} ]; then \
+    @if [ ! -d {{embedder_file}} ]; then \
         echo "Downloading embedding model..."; \
-        python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('{{embed_model_file}}'); model.save('./{{embed_model_file}}')"; \
+        python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('{{embedder_file}}'); model.save('./{{embedder_file}}')"; \
     else \
         echo "Embedding model already exists."; \
+    fi
+    @echo "Checking for rerank model..."
+    @if [ ! -d {{reranker_file}} ]; then \
+        echo "Downloading rerank model..."; \
+        python -c "from sentence_transformers import CrossEncoder; model = CrossEncoder('{{reranker_file}}'); model.save('./{{reranker_file}}')"; \
+    else \
+        echo "Rerank model already exists."; \
     fi
 
 serve mf="" *args:
@@ -34,7 +42,9 @@ serve mf="" *args:
 run input_file="corpus/literature.json" *args:
     python main.py --input "{{input_file}}" --timeout 0 --iterations 1 --refinement-iterations 3 --cache-prompt {{args}}
 
-vectorise mf="":
-    @model="{{mf}}"; \
-    if [ -z "$model" ]; then model="{{embed_model_file}}"; fi; \
-    python main.py --input "./" --embedding-model "./$model" --vectorise
+vectorise ef="" rf="":
+    @embedder="{{ef}}"; \
+    reranker="{{rf}}"
+    if [ -z "$embedder" ]; then embedder="{{embedder_file}}"; fi; \
+    if [ -z "$reranker" ]; then reranker="{{reranker_file}}"; fi; \
+    python main.py --input "./" --embedding-model "./$embedder" --rerank-model "./$reranker" --vectorise
