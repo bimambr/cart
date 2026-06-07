@@ -69,6 +69,7 @@ class LoadedEmbedder(Protocol):
     sense_embeddings: torch.Tensor
     embedder: SentenceTransformer
     reranker: CrossEncoder
+    lexical_index: dict[str, list[int]]
 
     def get_lexical_matches(self, excerpt: str) -> list[str]: ...
 
