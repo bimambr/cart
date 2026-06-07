@@ -570,17 +570,17 @@ def format_idiom_knowledge(idioms: Sequence[IdiomEntry]) -> str:
     def format_senses(senses: list[str]) -> str:
         return "\n".join([f"  {j}. {k} " for j, k in enumerate(senses, start=1)])
 
-    # def format_translations(translations: dict[str, str]) -> str:
-    #     if not translations:
-    #         return ""
+    def format_translations(translations: dict[str, str]) -> str:
+        if not translations:
+            return ""
 
-    #     return "\n\n    Translations:\n" + "\n".join(
-    #         [f"        {k}: {v}" for k, v in translations.items()]
-    #     )
+        return "\n\n    Example translations:\n" + "\n".join(
+            [f"        {k}: {v}" for k, v in translations.items()]
+        )
 
     return f"""
 Known idiom definitions:
-{nl.join([f"- {i['idiom']}:{nl}{format_senses(i['senses'])}" for i in idioms])}
+{nl.join([f"- {i['idiom']}:{nl}{format_senses(i['senses'])}{format_translations(i['translations'])}" for i in idioms])}
 """
 
 
