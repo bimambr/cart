@@ -273,22 +273,10 @@ class Embedder:
             if master_key in found_master_keys:
                 continue
 
-            raw_senses = entry.get("senses", [])
-            filtered_senses = raw_senses
-
-            if len(raw_senses) > 1:
-                sense_pairs = [[excerpt, sense] for sense in raw_senses]
-                sense_scores = await asyncio.to_thread(
-                    self.reranker.predict,  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-                    sense_pairs,
-                )
-                best_sense_idx = int(np.argmax(np.asarray(sense_scores).ravel()))
-                filtered_senses = [raw_senses[best_sense_idx]]
-
             results.append(
                 IdiomMatchResult(
                     idiom=idiom_key,
-                    senses=filtered_senses,
+                    senses=entry.get("senses", []),
                     translations=entry.get("translations", {}),
                     matched_chunk=current_chunk,
                     score=round(final_score, 3),
