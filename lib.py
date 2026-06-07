@@ -84,6 +84,7 @@ class Embedder:
         return (
             obj.idiom_embeddings is not None
             and obj.phrases is not None
+            and obj.phrase_lens is not None
             and obj.dict_embeddings is not None
             and obj.embedder is not None
             and obj.reranker is not None
