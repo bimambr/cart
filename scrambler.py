@@ -34,6 +34,7 @@ class Entry(TypedDict):
 
 class ScrambledRow(TypedDict):
     pair_id: int
+    target_idiom: str
     source_text: str
     translation_A: str
     translation_B: str
@@ -49,6 +50,7 @@ class KeyEntry(TypedDict):
 class _CLIArgs:
     baseline: str
     ce: str
+    idioms: str
     out_csv: str
     out_key: str
     override: bool
@@ -106,6 +108,10 @@ def main():
         help="Path to context_engineered.jsonl",
     )
     _ = parser.add_argument(
+        "idioms",
+        help="Path to idioms.json for row decoupling",
+    )
+    _ = parser.add_argument(
         "--out_csv",
         default="blind_test.csv",
         help="Output evaluation CSV",
@@ -132,41 +138,56 @@ def main():
         print("Error: No matching text IDs found between files.", file=sys.stderr)
         sys.exit(1)
 
+    with open(args.idioms, "r") as f:
+        idioms: list[str] = cast("list[str]", json.load(f))
+
     scrambled_rows: list[ScrambledRow] = []
     key_mapping = {}
+    pair_counter = 1
 
-    for pair_id, text_id in enumerate(common_ids, start=1):
+    for text_id in common_ids:
         b_item = base_map[text_id]
         c_item = ce_map[text_id]
 
-        flip = random.choice([True, False])
-        if flip:
-            trans_a, label_a = c_item["translation"], "ce"
-            trans_b, label_b = b_item["translation"], "baseline"
-        else:
-            trans_a, label_a = b_item["translation"], "baseline"
-            trans_b, label_b = c_item["translation"], "ce"
+        lowered = b_item["source_text"].lower()
+        detected_idioms = [i for i in idioms if i.lower() in lowered]
 
-        scrambled_rows.append(
-            {
-                "pair_id": pair_id,
-                "source_text": b_item["source_text"],
-                "translation_A": trans_a,
-                "translation_B": trans_b,
+        if not detected_idioms:
+            print(f"Warning: no idioms detected for text {text_id}. Skipping...")
+            continue
+
+        for idiom in detected_idioms:
+            flip = random.choice([True, False])
+            if flip:
+                trans_a, label_a = c_item["translation"], "ce"
+                trans_b, label_b = b_item["translation"], "baseline"
+            else:
+                trans_a, label_a = b_item["translation"], "baseline"
+                trans_b, label_b = c_item["translation"], "ce"
+
+            scrambled_rows.append(
+                ScrambledRow(
+                    pair_id=pair_counter,
+                    target_idiom=idiom,
+                    source_text=b_item["source_text"],
+                    translation_A=trans_a,
+                    translation_B=trans_b,
+                )
+            )
+
+            key_mapping[str(pair_counter)] = {
+                "text_id": text_id,
+                "translation_A": label_a,
+                "translation_B": label_b,
             }
-        )
-
-        key_mapping[str(pair_id)] = {
-            "text_id": text_id,
-            "translation_A": label_a,
-            "translation_B": label_b,
-        }
+            pair_counter += 1
 
     random.shuffle(scrambled_rows)
 
     headers = [
         "pair_id",
         "source_text",
+        "target_idiom",
         "translation_A",
         "translation_B",
         "accuracy_A",

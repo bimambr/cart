@@ -21,7 +21,7 @@ import json
 import sys
 from typing import TypedDict, cast
 import numpy as np
-from scipy.stats import wilcoxon  # pyright: ignore[reportUnknownVariableType]
+from scipy.stats import wilcoxon
 
 from scrambler import KeyEntry
 
@@ -45,6 +45,7 @@ class Metrics(TypedDict):
 class UnscrambledRow(TypedDict):
     text_id: int
     source_text: str
+    target_idiom: str
     baseline_translation: str
     ce_translation: str
     baseline_accuracy: float
@@ -169,6 +170,7 @@ def main():
                 UnscrambledRow(
                     text_id=mapping["text_id"],
                     source_text=row["source_text"],
+                    target_idiom=row["target_idiom"],
                     baseline_translation=row["translation_B"],
                     ce_translation=row["translation_A"],
                     baseline_accuracy=data_store["baseline"]["accuracy"][-1],
@@ -185,6 +187,7 @@ def main():
     unscrambled_headers = [
         "text_id",
         "source_text",
+        "target_idiom",
         "baseline_translation",
         "ce_translation",
         "baseline_accuracy",
