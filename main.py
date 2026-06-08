@@ -817,7 +817,6 @@ async def handle_baseline_state(state: State) -> None:
     prompt = f"Provide exactly one translation of the following text into {state['source_text']['target_lang']}:\n{state['source_text']['text']}\n\nTranslation:\n"
     temp = ARGS.optimiser_init_temperature
     seed = state["optimiser_seed"]
-    messages = build_messages(state, "", prompt)
     output = (
         await run_inference(
             state["client"],
@@ -827,7 +826,7 @@ async def handle_baseline_state(state: State) -> None:
             seed,
             timeout=ARGS.timeout,
             cache_prompt=ARGS.cache_prompt,
-            messages=messages,
+            messages=[("user", prompt, "user")],
         )
     ).strip()
     state["history"].append(
