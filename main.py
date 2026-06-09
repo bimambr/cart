@@ -62,6 +62,8 @@ ARGS = get_parsed_args()
 
 
 # FIXME: maybe dynamically inject examples
+# SELF-NOTE: the preliminary test showed that injecting few-shot multi-turn
+# diluted the attention of the SLM; it is not used in the actual eval
 EXAMPLES: list[ExampleEntry] = [
     # 1. misses the idiom definition (translates literally despite context)
     ExampleEntry(
@@ -764,7 +766,8 @@ def build_messages(
     if system_prompt:
         messages.append(("system", system_prompt, "system"))
 
-    messages.extend(get_few_shot_turns(state))
+    if ARGS.inject_few_shot:
+        messages.extend(get_few_shot_turns(state))
 
     history = state["history"]
     is_evaluating = history and history[-1].get("type") == "attempt"

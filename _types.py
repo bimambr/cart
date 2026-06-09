@@ -147,6 +147,7 @@ class CLIArgs:
     optimiser_retry_temperature: float
     embedding_model: str
     rerank_model: str
+    inject_few_shot: bool
     iterations: int
     input: str
     timeout: int

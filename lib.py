@@ -548,6 +548,12 @@ def get_parsed_args() -> type[CLIArgs]:
         help=f"Rerank model to use (default: {RERANK_MODEL_NAME})",
     )
     _ = parser.add_argument(
+        "--inject-few-shot",
+        default=False,
+        action="store_true",
+        help="Inject few-shot examples as multi-turn conversations",
+    )
+    _ = parser.add_argument(
         "--iterations",
         type=lambda x: min(int(x), MAX_N_ITERATIONS),
         default=DEFAULT_N_ITERATIONS,
