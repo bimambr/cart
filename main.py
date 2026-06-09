@@ -629,22 +629,28 @@ Constraints:
 
 
 OPTIMISER_SYSTEM_PROMPT = """
-Translate the provided source text using the given external knowledge and interaction history. Pay close attention to how corrections, structural boundaries, and stylistic adjustments are resolved across the multi-turn interaction examples.
+Translate the provided source text into natural, idiomatic Indonesian using the given external knowledge and evaluation history. You must prioritize figurative accuracy, proper narrative register, and contextual phrasing over literal word-for-word translation. Incorporate any corrections or suggested alternatives from the interaction history seamlessly during refinement turns.
 """.strip()
 
 
 EVALUATOR_SYSTEM_PROMPT = """
-Evaluate the provided translation against the original source text by matching the scoring distributions and feedback patterns demonstrated in the few-shot examples. Assess accuracy, acceptability, and readability uniformly.
+Evaluate the provided translation against the original source text strictly across accuracy, acceptability, and readability. Be highly critical of idiomatic nuances, register, and narrative context; do not default to a perfect score of 3 if any literal calques, flat phrasing, or contextual mismatches are present.
+
+Mandatory Instruction: If you assign a score of 1 or 2 to any metric, you must explicitly include 1-2 highly natural, contextually accurate Indonesian alternatives at the end of that metric's feedback text. Do not just describe the error conceptually; provide the exact phrasing the optimiser should use. If the score is 3, no suggestions are required.
 
 Format your output exactly as follows:
-- accuracy: <score 1-3>. <feedback>
-- acceptability: <score 1-3>. <feedback>
-- readability: <score 1-3>. <feedback>
+- accuracy: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
+- acceptability: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
+- readability: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
 """.strip()
 
 
 OPTIMISER_INIT_PROMPT = """
 {CONTEXT}
+
+Instruction: Translate the Source Text naturally. Look at the 'Known idiom definitions' provided above. If any of those phrases appear in the Source Text, you must apply their defined meaning. Do not translate them literally word-for-word.
+
+Critical Grounding Constraint: Before translating, identify the exact physical action, dialogue topic, or narrative event occurring immediately around any identified idioms. You must translate the figurative meaning so that it anchors perfectly to that specific situational context, rather than defaulting to a generic or abstract dictionary definition.
 
 Source text: {SOURCE_TEXT}
 
@@ -654,6 +660,12 @@ Provide exactly one translation:
 
 EVALUATOR_INIT_PROMPT = """
 {CONTEXT}
+
+Instruction: Grade the Translation against the Source Text following the rubric format. 
+
+Critical Grounding Constraint: Before evaluating an idiom, identify the exact physical action or event occurring in the narrative immediately preceding the phrase. The idiom must be evaluated based on how it applies to that specific, immediate event—not as an abstract or generic dictionary definition. 
+
+If the translation uses a literal calque or selects the wrong contextual sense, you must penalize both Accuracy and Acceptability. If you assign a score of 1 or 2, you must provide highly natural, context-specific Indonesian alternatives inside the feedback block.
 
 Source text: {SOURCE_TEXT}
 
