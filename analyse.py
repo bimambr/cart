@@ -21,7 +21,7 @@ import json
 import sys
 from typing import TypedDict, cast
 import numpy as np
-from scipy.stats import wilcoxon
+from scipy.stats import wilcoxon, rankdata
 
 from scrambler import KeyEntry
 
@@ -65,23 +65,53 @@ def calculate_tqa(acc: float, accp: float, read: float) -> float:
 def save_stat_report(
     filename: str, metric_name: str, base_scores: list[float], ce_scores: list[float]
 ):
-    base_mean = np.mean(base_scores)
-    ce_mean = np.mean(ce_scores)
+    base_arr = np.array(base_scores, dtype=np.float64)
+    ce_arr = np.array(ce_scores, dtype=np.float64)
+    base_median = cast(float, np.median(base_arr))
+    ce_median = cast(float, np.median(ce_arr))
+    base_mean = np.mean(base_arr)
+    ce_mean = np.mean(ce_arr)
+    diffs = ce_arr - base_arr
+    nonzero = diffs[diffs != 0]
+    n_total = len(diffs)
+    n_pos = np.sum(diffs > 0)
+    n_neg = np.sum(diffs < 0)
+    n_active = len(nonzero)
+    n_zero = n_total - n_active
+    median_diff = np.median(diffs)
+    W_plus, W_minus, stat, p_val, rank_biserial = np.nan, np.nan, np.nan, 1.0, np.nan
 
-    if np.array_equal(base_scores, ce_scores):
-        stat, p_val = 0.0, 1.0
-    else:
+    if nonzero.size > 0:
         try:
-            stat, p_val = wilcoxon(base_scores, ce_scores)
+            res = wilcoxon(ce_arr, base_arr)
+            stat, p_val = res.statistic, res.pvalue
+            ranks = rankdata(np.abs(nonzero))
+            W_plus = np.sum(ranks[nonzero > 0])
+            W_minus = np.sum(ranks[nonzero < 0])
+            rank_biserial = (W_plus - W_minus) / (W_plus + W_minus)
         except ValueError:
-            stat, p_val = np.nan, np.nan
+            pass
 
     with open(filename, "w", encoding="utf-8") as f:
-        _ = f.write(f"=== Wilcoxon Signed-Rank Test: {metric_name} ===\n")
-        _ = f.write(f"Baseline Mean : {base_mean:.4f}\n")
-        _ = f.write(f"CE Mean       : {ce_mean:.4f}\n")
-        _ = f.write(f"Statistic     : {stat}\n")
-        _ = f.write(f"p-value       : {p_val}\n")
+        # fmt: off
+        _ = f.write(f"=== Wilcoxon Signed-Rank Test Report: {metric_name} ===\n\n")
+
+        _ = f.write("--- DESCRIPTIVE STATISTICS ---\n")
+        _ = f.write(f"Baseline (Mean / Median)        : {base_mean:.4f} / {base_median:.4f}\n")
+        _ = f.write(f"Context-Engineered (Mean / Med) : {ce_mean:.4f} / {ce_median:.4f}\n")
+        _ = f.write(f"Median of Differences           : {median_diff:.4f}\n\n")
+
+        _ = f.write("--- SAMPLE DISTRIBUTION DATA ---\n")
+        _ = f.write(f"Total Paired Items (N)          : {n_total}\n")
+        _ = f.write(f"Excluded Zero-Differences       : {n_zero}\n")
+        _ = f.write(f"Effective Sample Size (n_active): {n_active}\n")
+        _ = f.write(f"Positive Changes (CE > Base)    : {n_pos}\n")
+        _ = f.write(f"Negative Changes (CE < Base)    : {n_neg}\n\n")
+
+        _ = f.write("--- INFERENTIAL TEST METRICS ---\n")
+        _ = f.write(f"W+ / W- / min(W+, W-)           : {W_plus} / {W_minus} / {stat} \n")
+        _ = f.write(f"p-value                         : {p_val:.6f}\n")
+        _ = f.write(f"Rank-Biserial Effect Size (r)   : {rank_biserial:.4f}\n")
 
 
 def main():
