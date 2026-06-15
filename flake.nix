@@ -31,6 +31,9 @@
             pkgs.python3
             pkgs.uv
 
+            pkgs.ruff
+            pkgs.basedpyright
+
             llamaCppCuda
 
             pkgs.just
