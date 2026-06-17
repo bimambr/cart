@@ -175,7 +175,9 @@ def main():
             tqa_A = calculate_tqa(acc_A, accp_A, read_A)
             tqa_B = calculate_tqa(acc_B, accp_B, read_B)
 
-            if mapping["translation_A"] == "baseline":
+            a_is_baseline = mapping["translation_A"] == "baseline"
+
+            if a_is_baseline:
                 data_store["baseline"]["accuracy"].append(acc_A)
                 data_store["baseline"]["acceptability"].append(accp_A)
                 data_store["baseline"]["readability"].append(read_A)
@@ -201,8 +203,12 @@ def main():
                     text_id=mapping["text_id"],
                     source_text=row["source_text"],
                     target_idiom=row["target_idiom"],
-                    baseline_translation=row["translation_B"],
-                    ce_translation=row["translation_A"],
+                    baseline_translation=row["translation_A"]
+                    if a_is_baseline
+                    else row["translation_B"],
+                    ce_translation=row["translation_B"]
+                    if a_is_baseline
+                    else row["translation_A"],
                     baseline_accuracy=data_store["baseline"]["accuracy"][-1],
                     baseline_acceptability=data_store["baseline"]["acceptability"][-1],
                     baseline_readability=data_store["baseline"]["readability"][-1],
