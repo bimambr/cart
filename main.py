@@ -113,7 +113,7 @@ def format_rubric(rubric: Rubric) -> str:
 """.strip()
 
 
-IDIOM_EXTRACTION_GRAMMAR = """
+IDIOM_EXTRACTION_GRAMMAR = r"""
 root        ::= "[" string-list "]"
 string-list ::= (string (", " string)*)?
 string      ::= "\"" [^"\\]* "\""   
