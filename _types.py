@@ -147,7 +147,6 @@ class CLIArgs:
     optimiser_retry_temperature: float
     embedding_model: str
     rerank_model: str
-    inject_few_shot: bool
     iterations: int
     input: str
     timeout: int
@@ -157,16 +156,6 @@ class CLIArgs:
     baseline: bool
     vectorise: bool
     match_idioms_only: bool
-
-
-class ExampleEntry(TypedDict):
-    source_lang: str
-    target_lang: str
-    source_text: str
-    translation: str
-    rubric: "Rubric"
-    revision: str | None
-    known_idioms: list[IdiomEntry]
 
 
 class Rubric(TypedDict):
