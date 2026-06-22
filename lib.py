@@ -179,7 +179,7 @@ class Embedder:
             if (max_idx - min_idx) > (len(core_tokens) + MAX_TOKEN_SPAN_PADDING):
                 continue
 
-            ret.add(" ".join(words[min_idx : max_idx + 1]))
+            ret.add(phrase)
 
         LOGGER.info("Lexical matches: %s", ret)
         return [*ret]
