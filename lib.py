@@ -63,7 +63,6 @@ PUNCTUATIONS = ".,!?\"'()[]{}"
 MIN_RETRIEVAL_SCORE = 0.1
 MIN_FINAL_SCORE = 0.3
 TOP_K = 5
-MIN_SINGLE_TOKEN_LENGTH = 6
 MAX_TOKEN_SPAN_PADDING = 4
 
 
@@ -163,10 +162,7 @@ class Embedder:
             if not (core_tokens and core_tokens.issubset(word_set)):
                 continue
 
-            if (
-                len(core_tokens) < 2
-                and len(list(core_tokens)[0]) < MIN_SINGLE_TOKEN_LENGTH
-            ):
+            if len(core_tokens) < 2:
                 continue
 
             indices = [i for i, w in enumerate(normalised_words) if w in core_tokens]

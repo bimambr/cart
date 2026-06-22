@@ -647,7 +647,11 @@ class FileProcessor:
             ],
         )
 
-        if not (extracted_phrases := cast("list[str]", json.loads(output))):
+        if not (
+            extracted_phrases := [
+                i for i in cast("list[str]", json.loads(output)) if len(i.split()) > 1
+            ]
+        ):
             return []
 
         LOGGER.info("Extracted idioms: %s", extracted_phrases)
