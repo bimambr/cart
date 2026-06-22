@@ -87,7 +87,7 @@ def format_idiom_knowledge(idioms: Sequence[IdiomMatchResult]) -> str:
 
     return f"""
 Known idiom definitions:
-{nl.join([f"- Dictionary form: {i['idiom']}:{nl} (Realised in text as: {i['matched_chunk']}){format_senses(i['senses'])}{format_translations(i['translations'])}" for i in idioms])}
+{nl.join([f"- Dictionary form: {i['idiom']}:{nl}{format_senses(i['senses'])}{format_translations(i['translations'])}" for i in idioms])}
 """
 
 
