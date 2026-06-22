@@ -32,7 +32,6 @@ import aiohttp
 from _types import (
     CSVWriter,
     Corpus,
-    IdiomEntry,
     IdiomMatchResult,
     Rubric,
     SourceTextEntry,
@@ -70,7 +69,7 @@ External retrieved knowledge:
 """
 
 
-def format_idiom_knowledge(idioms: Sequence[IdiomEntry]) -> str:
+def format_idiom_knowledge(idioms: Sequence[IdiomMatchResult]) -> str:
     nl = "\n"
     if not idioms:
         return ""
@@ -88,7 +87,7 @@ def format_idiom_knowledge(idioms: Sequence[IdiomEntry]) -> str:
 
     return f"""
 Known idiom definitions:
-{nl.join([f"- {i['idiom']}:{nl}{format_senses(i['senses'])}{format_translations(i['translations'])}" for i in idioms])}
+{nl.join([f"- Dictionary form: {i['idiom']}:{nl} (Realised in text as: {i['matched_chunk']}){format_senses(i['senses'])}{format_translations(i['translations'])}" for i in idioms])}
 """
 
 
@@ -121,81 +120,129 @@ string      ::= "\"" [^"\\]* "\""
 
 
 IDIOM_EXTRACTION_SYSTEM_PROMPT = """
-Extract idioms, fixed metaphorical phrases, or non-compositional expressions present within the provided text as a JSON list. Do not explain. No code blocks.
+Extract all idioms, phrasal verbs, fixed metaphors, figures of speech, collocations, or non-compositional expressions present within the provided text as a raw JSON list. Do not explain. No code blocks.
 
-Constraints:
-1. Extract the phrase exactly as it appears in the text.
-2. Broaden your criteria: include physical expressions used metaphorically and idiomatic word pairings.
-3. Bias toward over-extraction. If a phrase is even slightly figurative or non-literal, extract it. The downstream system will handle filtering; it is critical that you do not miss any candidate expressions.
-4. Output a valid flat JSON array of strings: ["extracted_phrase_1", "extracted_phrase_2"]
-5. If absolutely no figurative expressions are present, output exactly: []
-6. Provide NO explanations and NO conversational filler.
-"""
+Strict Execution Rules:
+1. Extract the phrase exactly as it physically appears in the text, even if it is inflected, conjugated, or split by pronouns/adjectives (e.g., if the text says "banging our heads against that wall", extract exactly "banging our heads against that wall").
+2. Broaden criteria to include any phrase where the overall meaning cannot be understood directly from the literal definitions of the individual words.
+3. Treat any physical action used in a psychological, emotional, or situational context as a metaphorical expression and extract it.
+4. Bias heavily toward absolute over-extraction. If a phrase is even 1% figurative, non-literal, or cliché, extract it. The downstream system handles filtering; missing an expression is a critical pipeline failure.
+5. Output a valid, flat JSON array of strings: ["extracted_phrase_1", "extracted_phrase_2"]
+6. If absolutely no figurative or formulaic expressions are present, output exactly: []
+7. Provide zero explanations, zero markdown formatting blocks, and zero conversational filler.
+""".strip()
 
 
 OPTIMISER_SYSTEM_PROMPT = """
-Translate the provided source text into natural, idiomatic Indonesian using the given external knowledge and evaluation history. You must prioritize figurative accuracy, proper narrative register, and contextual phrasing over literal word-for-word translation. Incorporate any corrections or suggested alternatives from the interaction history seamlessly during refinement turns.
+You are an expert translator. For every generation turn, you must operate strictly in two successive phases: first, analyze and verify the contextual alignment of idioms and identify literal calque traps; second, output the final natural translation into the target language specified in the context block. You must prioritize figurative accuracy and target narrative register over word-for-word translation.
 """.strip()
 
 
 EVALUATOR_SYSTEM_PROMPT = """
-Evaluate the provided translation against the original source text strictly across accuracy, acceptability, and readability. Be highly critical of idiomatic nuances, register, and narrative context; do not default to a perfect score of 3 if any literal calques, flat phrasing, or contextual mismatches are present.
-
-Mandatory Instruction: If you assign a score of 1 or 2 to any metric, you must explicitly include 1-2 highly natural, contextually accurate Indonesian alternatives at the end of that metric's feedback text. Do not just describe the error conceptually; provide the exact phrasing the optimiser should use. If the score is 3, no suggestions are required.
-
-Format your output exactly as follows:
-- accuracy: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
-- acceptability: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
-- readability: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
+You are a translation critic scoring text across accuracy, acceptability, and readability based on Nababan TQA. For every turn, you must operate strictly in two successive phases: first, analyze and verify how surface forms were mapped and resolved against the dictionary; second, render your final grades.
+- You must penalize both Accuracy and Acceptability if a literal calque or incorrect contextual sense is present.
+- If you assign a score of 1 or 2, you must explicitly provide highly natural, context-specific alternatives in the target language at the end of that metric's feedback text.
 """.strip()
 
 
 OPTIMISER_INIT_PROMPT = """
 {CONTEXT}
 
-Instruction: Translate the Source Text naturally. Look at the 'Known idiom definitions' provided above. If any of those phrases appear in the Source Text, you must apply their defined meaning. Do not translate them literally word-for-word.
+Instruction: Review the provided "Known idiom definitions" and the "Source text" to perform a two-step translation process into the specified target language.
 
-Critical Grounding Constraint: Before translating, identify the exact physical action, dialogue topic, or narrative event occurring immediately around any identified idioms. You must translate the figurative meaning so that it anchors perfectly to that specific situational context, rather than defaulting to a generic or abstract dictionary definition.
+### Step 1: Idiom Alignment & Context Verification
+For each idiom listed in the definitions, check if it or a contextual variation of it appears in the Source Text. Write down your analysis using the following format:
+- Dictionary Form: [Canonical Name]
+- Realized Phrasing: [The exact words used in the text]
+- Meaning Applied: [The figurative meaning based on the context]
+- Literal Calque Warning (What to avoid): [Write down the exact word-for-word translation of the source tokens that sounds like machine translation or feels unnatural in the target language]
+- Target Paraphrase Strategy (What to use): [Provide 2-3 highly natural, contextual phrasings in the target language that are completely different from the literal calque warning above]
+
+### Step 2: Final Translation
+Provide the natural translation into the target language based on your analysis above. Do not translate idioms literally word-for-word if they are used figuratively.
 
 Source text: {SOURCE_TEXT}
 
-Provide exactly one translation:
+Follow the format exactly:
+Analysis:
+<your step 1 analysis here>
+
+Translation:
+<your complete final translation here>
+""".strip()
+
+
+OPTIMISER_RETRY_PROMPT = """
+Grades and Critique:
+{GRADES}
+
+Instruction: Review the grades and suggested target-language alternatives above. Execute your revision in two steps to resolve the noted flaws.
+
+### Step 1: Amendment Analysis
+- Identified Flaws: [Briefly list the specific structural, semantic, or calque errors noted by the evaluator]
+- Applied Corrections: [State which suggested alternatives, target phrasings, or register adjustments you will integrate]
+
+### Step 2: Final Revision
+Provide your complete updated translation block containing all sentences.
+
+Follow the format exactly:
+Analysis:
+<your amendment analysis here>
+
+Revision: <complete updated translation text>
 """.strip()
 
 
 EVALUATOR_INIT_PROMPT = """
 {CONTEXT}
 
-Instruction: Grade the Translation against the Source Text following the rubric format. 
+Instruction: Grade the Translation against the Source Text following the rubric format.
 
-Critical Grounding Constraint: Before evaluating an idiom, identify the exact physical action or event occurring in the narrative immediately preceding the phrase. The idiom must be evaluated based on how it applies to that specific, immediate event—not as an abstract or generic dictionary definition. 
+### Step 1: Contextual Alignment Verification
+Analyze how the idioms from the dictionary were realized in the text and evaluate if the translation handled them correctly (literal vs. figurative application). Format your analysis as follows:
+- Dictionary Form: [Canonical Name]
+- Realized Phrasing: [The exact surface words used in the text]
+- Context Requirement: [Literal or Figurative?]
+- Translation Treatment: [Detail if it was translated literally as a calque or correctly paraphrased contextually]
 
-If the translation uses a literal calque or selects the wrong contextual sense, you must penalize both Accuracy and Acceptability. If you assign a score of 1 or 2, you must provide highly natural, context-specific Indonesian alternatives inside the feedback block.
+### Step 2: Final Scoring
+Provide the grades following the rubric format exactly. If you assign a score of 1 or 2 to any metric, you must include 1-2 highly natural, contextually accurate alternatives in the target language at the end of that metric's feedback text.
 
 Source text: {SOURCE_TEXT}
-
 Translation: {TRANSLATION_ATTEMPT}
 
-Provide the grades following the rubric:
-""".strip()
+Output:
+Analysis:
+<your analysis here>
 
-
-OPTIMISER_RETRY_PROMPT = """
 Grades:
-{GRADES}
-
-Provide your revision in the exact output:
-Planned changes:
-- <brief reasoning>
-
-Revision: <the complete updated translation block containing all sentences>
+- accuracy: <score 1-3>. <feedback>
+- acceptability: <score 1-3>. <feedback>
+- readability: <score 1-3>. <feedback>
 """.strip()
 
 
 EVALUATOR_RETRY_PROMPT = """
 Revision: {TRANSLATION_ATTEMPT}
 
-Regrade my revision following the rubric:
+Instruction: Regrade the updated revision directly against the previous feedback loop requirements using the rubric format.
+
+### Step 1: Amendment Verification
+Analyze the changes made in the revision against the previous critique. Format your analysis as follows:
+- Flaws Addressed: [Did the optimiser resolve the noted calques or errors?]
+- Target Phrasing Quality: [Is the new target phrasing fully natural and contextually accurate?]
+
+### Step 2: Final Regrading
+Strict Anti-Oscillation Rule: If the optimiser has integrated one of your exact "Suggested alternatives" from a previous turn, you MUST accept it as a successful resolution, score that metric as a 3, and state "Resolved via suggested alternative." You are strictly forbidden from changing your preference, shifting grading thresholds, or recommending a phrasing you previously criticized.
+
+Output:
+Analysis:
+<your amendment verification here>
+
+Grades:
+- accuracy: <score 1-3>. <feedback>
+- acceptability: <score 1-3>. <feedback>
+- readability: <score 1-3>. <feedback>
 """.strip()
 
 
@@ -390,7 +437,11 @@ async def handle_optimisation_state(state: State) -> None:
             messages=messages,
         )
     ).strip()
-    match = re.search(r"Revision:\s*(.*)", output, re.IGNORECASE | re.DOTALL)
+    match = re.search(
+        rf"{'Translation' if is_draft else 'Revision'}:\s*(.*)",
+        output,
+        re.IGNORECASE | re.DOTALL,
+    )
     translation = match.group(1).strip() if match else output.strip()
     state["history"].append(
         {
@@ -443,7 +494,12 @@ async def handle_evaluation_state(state: State) -> None:
             messages=messages,
         )
     ).strip()
-    rubric = parse_rubric(output.strip())
+    match = re.search(
+        r"Grades:\s*(.*)",
+        output,
+        re.IGNORECASE | re.DOTALL,
+    )
+    rubric = parse_rubric((match.group(1) if match else output).strip())
     evaluation: TranslationEvaluation = {
         "type": "evaluation",
         "prompt": prompt,
