@@ -212,7 +212,7 @@ class Embedder:
         )
 
         cosine_scores = util.cos_sim(phrase_embeddings, self.phrase_embeddings)  # pyright: ignore[reportUnknownMemberType]
-        top_scores, top_indices = torch.topk(cosine_scores, k=TOP_K, dim=1)  # pyright: ignore[reportPrivateImportUsage]
+        top_scores, top_indices = torch.topk(cosine_scores, k=TOP_K, dim=1)
         results: list[IdiomMatchResult] = []
         found_master_keys: set[str] = set()
 
