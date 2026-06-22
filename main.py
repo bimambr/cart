@@ -120,7 +120,7 @@ string      ::= "\"" [^"\\]* "\""
 
 
 IDIOM_EXTRACTION_SYSTEM_PROMPT = """
-Extract all idioms, phrasal verbs, fixed metaphors, figures of speech, collocations, or non-compositional expressions present within the provided text as a raw JSON list. Do not explain. No code blocks.
+Extract all idioms or non-compositional expressions present within the provided text as a raw JSON list. Do not explain. No code blocks.
 
 Strict Execution Rules:
 1. Extract the phrase exactly as it physically appears in the text, even if it is inflected, conjugated, or split by pronouns/adjectives (e.g., if the text says "banging our heads against that wall", extract exactly "banging our heads against that wall").
@@ -233,7 +233,7 @@ Analyze the changes made in the revision against the previous critique. Format y
 - Target Phrasing Quality: [Is the new target phrasing fully natural and contextually accurate?]
 
 ### Step 2: Final Regrading
-Strict Anti-Oscillation Rule: If the optimiser has integrated one of your exact "Suggested alternatives" from a previous turn, you MUST accept it as a successful resolution, score that metric as a 3, and state "Resolved via suggested alternative." You are strictly forbidden from changing your preference, shifting grading thresholds, or recommending a phrasing you previously criticized.
+Strict Anti-Oscillation Rule: If the user has integrated one of your exact "Suggested alternatives" from a previous turn, you MUST accept it as a successful resolution, score that metric as a 3, and state "Resolved via suggested alternative." You are strictly forbidden from changing your preference, shifting grading thresholds, or recommending a phrasing you previously criticized.
 
 Output:
 Analysis:
