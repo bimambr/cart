@@ -133,37 +133,22 @@ Constraints:
 
 
 OPTIMISER_SYSTEM_PROMPT = """
-Translate the provided source text into natural, idiomatic Indonesian using the given external knowledge and evaluation history. You must prioritize figurative accuracy, proper narrative register, and contextual phrasing over literal word-for-word translation. Incorporate any corrections or suggested alternatives from the interaction history seamlessly during refinement turns.
-
-If you are asked a revision, provide the full excerpt containing the revision.
-
-You are allowed to do a free-form analysis before providing the final translation.
-
-Format your output exactly as follows:
-Translation: <complete single-version translation>
+Translate the provided source text using the given external knowledge. You must prioritise figurative accuracy, proper narrative register, and contextual phrasing over literal word-for-word translation. If you are asked a revision, provide the full excerpt containing the revision. Before providing the translation, list every idiom first and start with exactly one paraphrase for each idiom definition in the target language under "Idioms: " block. Check if they are suitable for the context. If so, integrate them into the translation, otherwise paraphrase them so it fits well within the context. Remember that the listed idiom definition is in English, which is not always easily translated into Indonesian. For example, you may be overly confident that the paraphrase sounds natural in the target language when in fact, it does not. When in doubt, start with an overly verbose paraphrase. Always prefix your translation with "Translation: "
 """.strip()
 
 
 EVALUATOR_SYSTEM_PROMPT = """
-Evaluate the provided translation against the original source text strictly across accuracy, acceptability, and readability. Be highly critical of idiomatic nuances, register, and narrative context; do not default to a perfect score of 3 if any literal calques, flat phrasing, or contextual mismatches are present.
-
-If you assign a score of 1 or 2 to any metric, you must explicitly include a highly natural, contextually accurate alternative at the end of that metric's feedback text. Do not just describe the error conceptually; provide the exact phrasing the user should use. If the score is 3, no suggestions are required.
-
-You are allowed to do a free-form analysis before providing the grades.
+Evaluate the translation against the source text and the provided dictionary context.
 
 Format your output exactly as follows:
-- accuracy: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
-- acceptability: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
-- readability: <score 1-3>. <detailed explanation of error>. Suggested alternatives: <concrete Indonesian phrasing>
+- accuracy: <score 1-3>. <extra brief explanation of constraint match/mismatch>.
+- acceptability: <score 1-3>. <extra brief explanation of narrative register>.
+- readability: <score 1-3>. <extra brief explanation of syntax clarity>.
 """.strip()
 
 
 OPTIMISER_INIT_PROMPT = """
-Translate the following text based on the relevant information below.
-
-There can be false positives in the provided idioms. Analyse the context within the text to determine whether the provided idioms are to be considered. The meaning of the idiom provided may be specific to certain scenarios not applicable to the text. If that's the case, make sure to find the meaning that makes the most sense for the given text.
-
-Let's think step by step.
+Translate the following text based on the relevant information below. There can be false positives in the provided idioms. Analyse the context within the text to determine whether the provided idioms are to be considered. The meaning of the idiom provided may be specific to certain scenarios not applicable to the text. If that's the case, make sure to find the meaning that makes the most sense for the given text. Let's think step by step.
 
 {CONTEXT}
 
@@ -180,11 +165,7 @@ Grades:
 
 
 EVALUATOR_INIT_PROMPT = """
-Grade the translation against the source text following the rubric format.
-
-If you think the translation could be better, provide suggestions based on the relevant information below.
-
-Let's think step by step.
+Grade the translation against the source text following the rubric format. Let's think step by step.
 
 {CONTEXT}
 
