@@ -96,8 +96,6 @@ def format_context(state: State) -> str:
     return f"""
 Text type: {source_text["type"]}
 
-Translation direction: from {source_text["source_lang"]} to {source_text["target_lang"]}
-
 {format_external_knowledge(source_text.get("external_knowledge", []))}
 
 {format_idiom_knowledge(source_text.get("idiom_matches", []))}
@@ -132,46 +130,67 @@ Constraints:
 """.strip()
 
 
-OPTIMISER_SYSTEM_PROMPT = """
-Translate the provided source text using the given external knowledge. You must prioritise figurative accuracy, proper narrative register, and contextual phrasing over literal word-for-word translation. If you are asked a revision, provide the full excerpt containing the revision. Before providing the translation, list every idiom first and start with exactly one paraphrase for each idiom definition in the target language under "Idioms: " block. Check if they are suitable for the context. If so, integrate them into the translation, otherwise paraphrase them so it fits well within the context. Remember that the listed idiom definition is in English, which is not always easily translated into Indonesian. For example, you may be overly confident that the paraphrase sounds natural in the target language when in fact, it does not. When in doubt, start with an overly verbose paraphrase. Always prefix your translation with "Translation: "
+TRANSLATOR_SYSTEM_PROMPT = """
+You are a professional literary translator.
+
+Always output translation only, no notes or commentary.
 """.strip()
 
 
-EVALUATOR_SYSTEM_PROMPT = """
-Evaluate the translation against the source text and the provided dictionary context.
+BASELINE_PROMPT = """
+Translate the following text into {TARGET_LANG}.
 
-Format your output exactly as follows:
-- accuracy: <score 1-3>. <extra brief explanation of constraint match/mismatch>.
-- acceptability: <score 1-3>. <extra brief explanation of narrative register>.
-- readability: <score 1-3>. <extra brief explanation of syntax clarity>.
+Text:
+{SOURCE_TEXT}
 """.strip()
 
 
 OPTIMISER_INIT_PROMPT = """
-Translate the following text based on the relevant information below. There can be false positives in the provided idioms. Analyse the context within the text to determine whether the provided idioms are to be considered. The meaning of the idiom provided may be specific to certain scenarios not applicable to the text. If that's the case, make sure to find the meaning that makes the most sense for the given text. Let's think step by step.
+Translate the following text into {TARGET_LANG}. Use the additional reference information only if it helps clarify meaning. Some entries may be irrelevant. Use context awareness (speaker intent, tone, and scene) only to improve translation quality. Make sure you handle figurative language/collocations/idiom expressions appropriately.
 
 {CONTEXT}
 
-Source text: {SOURCE_TEXT}
+Text:
+{SOURCE_TEXT}
 """.strip()
 
 
 OPTIMISER_RETRY_PROMPT = """
-You are given grades and feedback regarding your translation. Execute your revision accordingly.
+You are given grades on a 1–3 scale and feedback regarding your translation. Execute your revision accordingly.
 
-Grades:
+Feedback:
 {GRADES}
 """.strip()
 
 
+EVALUATOR_SYSTEM_PROMPT = """
+You are a strict translation evaluator.
+
+You are using the following rubric:
+- accuracy: how accurate is the meaning transferred?
+- acceptability: how acceptable is the translation in terms of the culture and conventions of the target language?
+- readability: how easy for readers to read the translation (coherence and flow)?
+
+If an expression is supposed to be translated idiomatically/figuratively, but is translated literally, or vice versa, reduce the accuracy score.
+If the translation sounds clunky or the collocation makes no sense in the target language, reduce the acceptability score.
+
+Output format:
+- accuracy: <1-3>. <brief reason>
+- acceptability: <1-3>. <brief reason>
+- readability: <1-3>. <brief reason>
+""".strip()
+
+
 EVALUATOR_INIT_PROMPT = """
-Grade the translation against the source text following the rubric format. Let's think step by step.
+Evaluate the translation. Use the additional reference information only if it helps clarify meaning. Some entries may be irrelevant. Make sure the translation makes sense in the given context, instead of blindly comparing them against the provided definitions (if exist).
 
 {CONTEXT}
 
-Source text: {SOURCE_TEXT}
+Text:
+{SOURCE_TEXT}
 
-Translation: {TRANSLATION_ATTEMPT}
+Translation:
+{TRANSLATION_ATTEMPT}
 """.strip()
 
 
@@ -237,7 +256,9 @@ def parse_rubric(text: str) -> Rubric:
     }
 
     pattern = re.compile(
-        r"-?\s*\*?\*?(accuracy|acceptability|readability)\*?\*?\s*:\s*\*?\*?(\d+)(?:\.|\b)\*?\*?\s*([\s\S]*?)(?=-\s*\*?\*?(?:accuracy|acceptability|readability)\b|\Z)",
+        r"\*{0,2}\s*(accuracy|acceptability|readability)\s*:\s*\*{0,2}\s*(\d+)\s*\*{0,2}\s*\.*\s*"
+        + r"([\s\S]*?)"
+        + r"(?=\*{0,2}\s*(?:accuracy|acceptability|readability)\s*:|\Z)",
         re.IGNORECASE,
     )
 
@@ -260,7 +281,10 @@ async def handle_baseline_state(state: State) -> None:
     LOGGER.info(
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
-    prompt = f"Provide exactly one translation of the following text into {state['source_text']['target_lang']}:\n{state['source_text']['text']}\n\nTranslation:\n"
+    prompt = BASELINE_PROMPT.format(
+        TARGET_LANG=state["source_text"]["target_lang"],
+        SOURCE_TEXT=state["source_text"]["text"],
+    )
     temp = ARGS.optimiser_init_temperature
     seed = state["optimiser_seed"]
     output = (
@@ -272,7 +296,10 @@ async def handle_baseline_state(state: State) -> None:
             seed,
             timeout=ARGS.timeout,
             cache_prompt=ARGS.cache_prompt,
-            messages=[("user", prompt, "user")],
+            messages=[
+                ("system", TRANSLATOR_SYSTEM_PROMPT, "system"),
+                ("user", prompt, "user"),
+            ],
         )
     ).strip()
     state["history"].append(
@@ -329,7 +356,9 @@ async def handle_optimisation_state(state: State) -> None:
     context = format_context(state)
     if is_draft:
         prompt = OPTIMISER_INIT_PROMPT.format(
-            SOURCE_TEXT=state["source_text"]["text"], CONTEXT=context
+            SOURCE_TEXT=state["source_text"]["text"],
+            CONTEXT=context,
+            TARGET_LANG=state["source_text"]["target_lang"],
         )
     else:
         last_attempt = get_last_state(state, "attempt") or {}
@@ -360,7 +389,7 @@ async def handle_optimisation_state(state: State) -> None:
         else ARGS.optimiser_retry_temperature
     )
     seed = state["optimiser_seed"] * 10 + state["attempt"]
-    messages = build_messages(state, OPTIMISER_SYSTEM_PROMPT, prompt)
+    messages = build_messages(state, TRANSLATOR_SYSTEM_PROMPT, prompt)
     output = (
         await run_inference(
             state["client"],
