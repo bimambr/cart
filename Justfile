@@ -2,7 +2,8 @@ set shell := ["bash", "-c"]
 
 model_url := "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q8_0.gguf?download=true"
 model_file := "gemma-4-E2B-it-Q8_0.gguf"
-embedder_file := "all-MiniLM-L6-v2"
+corpus_embedder_file := "Snowflake/snowflake-arctic-embed-m-v1.5"
+query_embedder_file := "MongoDB/mdbr-leaf-ir"
 reranker_file := "mixedbread-ai/mxbai-rerank-base-v2"
 port := "8127"
 ctx := "32768"
@@ -18,12 +19,19 @@ setup:
     else \
         echo "Model already exists."; \
     fi
-    @echo "Checking for embedding model..."
-    @if [ ! -d {{embedder_file}} ]; then \
-        echo "Downloading embedding model..."; \
-        python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('{{embedder_file}}'); model.save('./{{embedder_file}}')"; \
+    @echo "Checking for corpus embedding model..."
+    @if [ ! -d {{corpus_embedder_file}} ]; then \
+        echo "Downloading corpus embedding model..."; \
+        python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('{{corpus_embedder_file}}'); model.save('./{{corpus_embedder_file}}')"; \
     else \
-        echo "Embedding model already exists."; \
+        echo "Corpus embedding model already exists."; \
+    fi
+    @echo "Checking for query embedding model..."
+    @if [ ! -d {{query_embedder_file}} ]; then \
+        echo "Downloading query embedding model..."; \
+        python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('{{query_embedder_file}}'); model.save('./{{query_embedder_file}}')"; \
+    else \
+        echo "Query embedding model already exists."; \
     fi
     @echo "Checking for rerank model..."
     @if [ ! -d {{reranker_file}} ]; then \
@@ -45,6 +53,6 @@ run input_file="corpus/literature.json" *args:
 vectorise ef="" rf="":
     @embedder="{{ef}}"; \
     reranker="{{rf}}"
-    if [ -z "$embedder" ]; then embedder="{{embedder_file}}"; fi; \
+    if [ -z "$embedder" ]; then embedder="{{corpus_embedder_file}}"; fi; \
     if [ -z "$reranker" ]; then reranker="{{reranker_file}}"; fi; \
     python main.py --input "./" --embedding-model "./$embedder" --rerank-model "./$reranker" --vectorise

@@ -17,4 +17,6 @@ blind_key.json
 # RAG
 mixedbread-ai/
 all-MiniLM-L6-v2/
+MongoDB/
+Snowflake/
 *.pkl
