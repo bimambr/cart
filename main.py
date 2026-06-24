@@ -54,8 +54,9 @@ SEEDS = [101, 202, 303, 404, 505, 606, 707, 808, 909, 1010]
 
 
 LOGGER = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 ARGS = get_parsed_args()
+
+logging.basicConfig(level=logging.DEBUG if ARGS.verbose else logging.INFO)
 
 
 def format_external_knowledge(external_knowledge: list[str]) -> str:
@@ -99,26 +100,6 @@ def format_rubric(rubric: Rubric) -> str:
 - accuracy: {rubric["accuracy"]["score"]}. {rubric["accuracy"]["feedback"]}
 - acceptability: {rubric["acceptability"]["score"]}. {rubric["acceptability"]["feedback"]}
 - readability: {rubric["readability"]["score"]}. {rubric["readability"]["feedback"]}
-""".strip()
-
-
-IDIOM_EXTRACTION_GRAMMAR = r"""
-root        ::= "[" string-list "]"
-string-list ::= (string (", " string)*)?
-string      ::= "\"" [^"\\]* "\""   
-""".strip()
-
-
-IDIOM_EXTRACTION_SYSTEM_PROMPT = """
-Extract idioms, fixed metaphorical phrases, or non-compositional expressions present within the provided text as a JSON list. Do not explain. No code blocks.
-
-Constraints:
-1. Extract the phrase exactly as it appears in the text.
-2. Broaden your criteria: include physical expressions used metaphorically and idiomatic word pairings.
-3. Bias toward over-extraction. If a phrase is even slightly figurative or non-literal, extract it. The downstream system will handle filtering; it is critical that you do not miss any candidate expressions.
-4. Output a valid flat JSON array of strings: ["extracted_phrase_1", "extracted_phrase_2"]
-5. If absolutely no figurative expressions are present, output exactly: []
-6. Provide NO explanations and NO conversational filler.
 """.strip()
 
 
@@ -584,36 +565,6 @@ class FileProcessor:
             self.log_file = None
         self.csv_writer = None
 
-    async def _get_idiom_matches(self, excerpt: str) -> list[IdiomMatchResult]:
-        if ARGS.baseline:
-            return []
-
-        output = await run_inference(
-            self.client,
-            ARGS.endpoint,
-            ARGS.model,
-            0.0,
-            SEEDS[0],
-            0,
-            IDIOM_EXTRACTION_GRAMMAR,
-            True,
-            False,
-            [
-                ("system", IDIOM_EXTRACTION_SYSTEM_PROMPT, "system"),
-                ("user", excerpt, "user"),
-            ],
-        )
-
-        if not (
-            extracted_phrases := [
-                i for i in cast("list[str]", json.loads(output)) if len(i.split()) > 1
-            ]
-        ):
-            return []
-
-        LOGGER.info("Extracted idioms: %s", extracted_phrases)
-        return await self.embedder.get_idiom_definitions(excerpt, extracted_phrases)
-
     async def process(self) -> None:
         if not self.input_file.exists():
             LOGGER.error("Input file '%s' does not exist.", self.input_file)
@@ -648,7 +599,9 @@ class FileProcessor:
                 "id": text_idx + 1,
                 "external_knowledge": input_json.get("external_knowledge", [])
                 + text.get("external_knowledge", []),
-                "idiom_matches": await self._get_idiom_matches(text["content"]),
+                "idiom_matches": []
+                if ARGS.baseline
+                else await self.embedder.get_idiom_definitions(text["content"]),
             }
 
             await self._process_text(source_text)

@@ -95,18 +95,15 @@ class IdiomEntry(TypedDict):
 
 class IdiomMatchCandidate(TypedDict):
     phrase_idx: int
+    sense_idx: int
     base_score: float
-    context_score: float
     rerank_score: float
-    final_score: float
 
 
 class IdiomMatchResult(IdiomEntry):
     matched_chunk: str
     base_score: float
-    context_score: float
     rerank_score: float
-    final_score: float
 
 
 class ChatTemplateKwargs(TypedDict, total=False):
@@ -156,6 +153,7 @@ class CLIArgs:
     baseline: bool
     vectorise: bool
     match_idioms_only: bool
+    verbose: bool
 
 
 class Rubric(TypedDict):
