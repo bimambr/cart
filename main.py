@@ -123,9 +123,12 @@ Constraints:
 
 
 TRANSLATOR_SYSTEM_PROMPT = """
-You are a professional literary translator.
+You are an expert literary translator specialising in dynamic equivalence. 
 
-Always output translation only, no notes or commentary.
+Your goal is to convey the psychological subtext, tone, and idiomatic impact of the source text so that it reads as an original work in the target language. Avoid literal translations, syntactic calques, and word-for-word substitutions of idioms.
+
+Output format:
+Translation: <the complete translated text>
 """.strip()
 
 
@@ -138,7 +141,7 @@ Text:
 
 
 OPTIMISER_INIT_PROMPT = """
-Translate the following text into {TARGET_LANG}. Use the additional reference information only if it helps clarify meaning. Some entries may be irrelevant. Use context awareness (speaker intent, tone, and scene) only to improve translation quality. Make sure you handle figurative language/collocations/idiom expressions appropriately.
+Translate the following text into {TARGET_LANG} using the provided context and dictionary definitions.
 
 {CONTEXT}
 
@@ -148,7 +151,7 @@ Text:
 
 
 OPTIMISER_RETRY_PROMPT = """
-You are given grades on a 1–3 scale and feedback regarding your translation. Execute your revision accordingly.
+You are given grades on a 1–3 scale and feedback regarding your translation.
 
 Feedback:
 {GRADES}
@@ -158,13 +161,10 @@ Feedback:
 EVALUATOR_SYSTEM_PROMPT = """
 You are a strict translation evaluator.
 
-You are using the following rubric:
-- accuracy: how accurate is the meaning transferred?
-- acceptability: how acceptable is the translation in terms of the culture and conventions of the target language?
-- readability: how easy for readers to read the translation (coherence and flow)?
-
-If an expression is supposed to be translated idiomatically/figuratively, but is translated literally, or vice versa, reduce the accuracy score.
-If the translation sounds clunky or the collocation makes no sense in the target language, reduce the acceptability score.
+Evaluate based on these strict definitions:
+- accuracy: Is the psychological and contextual meaning preserved? (Penalty if a figurative phrase is translated literally, altering its implied meaning).
+- acceptability: Does the translation sound like natural prose written native-to-native, or does it sound like "translationese" (English syntax/idioms masquerading as target language words)?
+- readability: Flow, rhythm, and coherence.
 
 Output format:
 - accuracy: <1-3>. <brief reason>
@@ -174,7 +174,7 @@ Output format:
 
 
 EVALUATOR_INIT_PROMPT = """
-Evaluate the translation. Use the additional reference information only if it helps clarify meaning. Some entries may be irrelevant. Make sure the translation makes sense in the given context, instead of blindly comparing them against the provided definitions (if exist).
+Evaluate the translation using the provided context and dictionary definitions.
 
 {CONTEXT}
 
