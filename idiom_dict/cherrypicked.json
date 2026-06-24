@@ -1,66 +1,30 @@
 {
-  "cut (someone) to the quick": {
+  "touch/sting to the quick/bone": {
     "senses": [
-      "to hurt someone's feelings a lot"
+      "deeply emotionally hurt or offended"
     ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/cut-to-the-quick"
+    "source": "https://idioms.thefreedictionary.com/touched+to+the+quick"
   },
-  "cut/sting/pierce somebody to the quick": {
-    "senses": [
-      "if a remark or criticism cuts you to the quick, it makes you feel extremely upset"
-    ],
-    "source": "https://www.ldoceonline.com/dictionary/cut-sting-pierce-somebody-to-the-quick"
-  },
-  "confidence trickster": {
-    "senses": [
-      "a person who deceives other people by making them believe something false or making them give money away; a con artist"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/confidence-trickster"
-  },
-  "bloodsucking": {
-    "senses": [
-      "taking money, happiness, etc. from people in a way that is unfair or cruel"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/bloodsucking"
-  },
-  "retreat into yourself/your shell/fantasy etc": {
+  "retreat into yourself": {
     "senses": [
       "to ignore what is happening around you and give all your attention to your private thoughts"
     ],
     "source": "https://www.ldoceonline.com/dictionary/retreat-into-yourself-your-shell-fantasy-etc",
-    "translations": {
-      "jp": "精神の思考に没入する"
-    }
+    "master_key": "retreat into yourself/your shell/ your fantasy"
   },
-  "hash something out": {
+  "retreat into your shell": {
     "senses": [
-      "to talk about something with someone else in order to reach agreement about it"
+      "to ignore what is happening around you and give all your attention to your private thoughts"
     ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/hash-out"
+    "source": "https://www.ldoceonline.com/dictionary/retreat-into-yourself-your-shell-fantasy-etc",
+    "master_key": "retreat into yourself/your shell/ your fantasy"
   },
-  "tinker's damn": {
+  "retreat into your fantasy": {
     "senses": [
-      "a minimum amount of degree (as of care)"
+      "to ignore what is happening around you and give all your attention to your private thoughts"
     ],
-    "source": "https://www.merriam-webster.com/dictionary/tinker%27s%20damn"
-  },
-  "not give a tinker's damn": {
-    "senses": [
-      "to not be interested in or worried about something or someone"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/not-give-a-tinker-s-damn"
-  },
-  "roll up the sidewalks": {
-    "senses": [
-      "to close all commercial businesses for the day"
-    ],
-    "source": "https://en.wiktionary.org/wiki/roll_up_the_sidewalks"
-  },
-  "be banging your head against a brick wall": {
-    "senses": [
-      "to do, say, or ask for something repeatedly but to be unable to change a situation"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/learner-english/be-banging-your-head-against-a-brick-wall"
+    "source": "https://www.ldoceonline.com/dictionary/retreat-into-yourself-your-shell-fantasy-etc",
+    "master_key": "retreat into yourself/your shell/ your fantasy"
   },
   "a hard/tough nut to crack": {
     "senses": [
@@ -68,16 +32,41 @@
     ],
     "source": "https://dictionary.cambridge.org/dictionary/english/hard-tough-nut-to-crack"
   },
-  "on a tear": {
-    "senses": [
-      "engaged in a continuous, fast-paced procession of actions or events; can be used positively (e.g., winning streak) or negatively (binge-drinking)"
-    ]
-  },
   "spick and span": {
     "senses": [
       "(especially of a place) very clean and tidy"
     ],
     "source": "https://dictionary.cambridge.org/dictionary/english/spick-and-span"
+  },
+  "be a hard/tough act to follow": {
+    "senses": [
+      "to be so good that it is not likely that anyone or anything that comes after will be as good"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/be-a-hard-tough-act-to-follow"
+  },
+  "keep your hand in": {
+    "senses": [
+      "to practise a skill often enough so that you do not lose the skill"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/keep-hand-in"
+  },
+  "throw/put/knock someone off their stride/stroke": {
+    "senses": [
+      "to take someone's attention away from what they are doing, so that they stop doing it or do it wrong"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/put-off-stride"
+  },
+  "be no slouch": {
+    "senses": [
+      "if you say that someone is no slouch at a particular activity, you mean that they work hard at it and produce good results"
+    ],
+    "source": "https://dictionary.cambridge.org/dictionary/english/be-no-slouch"
+  },
+  "my money's on somebody/something": {
+    "senses": [
+      "used to say that you feel sure someone will win a race or competition, or that something will happen"
+    ],
+    "source": "https://www.ldoceonline.com/dictionary/my-money-s-on-somebody-something"
   },
   "be a hard/tough act to follow": {
     "senses": [
@@ -92,18 +81,17 @@
     ],
     "source": "https://dictionary.cambridge.org/dictionary/english/not-say-boo"
   },
-  "strike oil": {
+  "take (great) pains to do something": {
     "senses": [
-      "to find petroleum when boring for it",
-      "(figuratively, idiomatic, informal) to have sudden good fortune, especially financially"
+      "to try very hard to do something"
     ],
-    "source": "https://en.wiktionary.org/wiki/strike_oil"
+    "source": "https://dictionary.cambridge.org/dictionary/english/take-great-pains-to"
   },
-  "down for the count": {
+  "not give a tinker's damn/cuss": {
     "senses": [
-      "(of a boxer) knocked down and unable to get up again before the referee counts to 10; often used figuratively"
+      "to not be interested in or worried about something or someone"
     ],
-    "source": "https://www.merriam-webster.com/dictionary/down%20for%20the%20count"
+    "source": "https://dictionary.cambridge.org/dictionary/english/not-give-a-tinker-s-damn"
   },
   "keep your hand in": {
     "senses": [
@@ -111,67 +99,10 @@
     ],
     "source": "https://dictionary.cambridge.org/dictionary/english/keep-hand-in"
   },
-  "make good on something": {
+  "be a hard/tough act to follow": {
     "senses": [
-      "to do what you have said you would do"
+      "to be so good that it is not likely that anyone or anything that comes after will be as good"
     ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/make-good-on"
-  },
-  "rattle around": {
-    "senses": [
-      "to live or spend time in a place that is very big; sometimes used figuratively"
-    ],
-    "source": "https://www.merriam-webster.com/dictionary/rattle%20around"
-  },
-  "take (great) pains to do something": {
-    "senses": [
-      "to try very hard to do something"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/take-great-pains-to"
-  },
-  "draw the line": {
-    "senses": [
-      "to never do something because you think it is wrong",
-      "to put a limit on what you will do or allow to happen, esp. because you feel something is wrong."
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/draw-the-line"
-  },
-  "throw/put/knock someone off their stride/stroke": {
-    "senses": [
-      "to take someone's attention away from what they are doing, so that they stop doing it or do it wrong"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/put-off-stride"
-  },
-  "save your breath": {
-    "senses": [
-      "used to say that it is not worth talking to someone because they will not listen to you",
-      "to not say anything"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/save-breath"
-  },
-  "clap/lay/set eyes on someone/something": {
-    "senses": [
-      "to see someone or something for the first time"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/clap-lay-set-eyes-on"
-  },
-  "be no slouch": {
-    "senses": [
-      "if you say that someone is no slouch at a particular activity, you mean that they work hard at it and produce good results"
-    ],
-    "source": "https://dictionary.cambridge.org/dictionary/english/be-no-slouch"
-  },
-  "my money's on somebody/something": {
-    "senses": [
-      "used to say that you feel sure someone will win a race or competition, or that something will happen"
-    ],
-    "source": "https://www.ldoceonline.com/dictionary/my-money-s-on-somebody-something"
-  },
-  "cast-iron stomach": {
-    "senses": [
-      "the ability to eat foods that others may find unusual, unpalatable, or too spicy, without experiencing any ill effects like nausea or upset stomach",
-      "a very strong stomach that can withstand bad food or anything nauseating"
-    ],
-    "source": "https://idioms.thefreedictionary.com/cast-iron+stomach"
+    "source": "https://dictionary.cambridge.org/dictionary/english/be-a-hard-tough-act-to-follow"
   }
 }

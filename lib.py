@@ -315,16 +315,17 @@ class Embedder:
     def generate_vectors(self) -> None:
         normalised_dict: dict[str, IdiomEntry] = {}
 
-        with open("idiom_dict/cherrypicked.json", "r", encoding="utf-8") as f:
-            json_data = json.load(f)  # pyright: ignore[reportAny]
-            for phrase, data in json_data.items():  # pyright: ignore[reportAny]
-                assert isinstance(phrase, str)
-                normalised_dict[phrase] = IdiomEntry(
-                    idiom=phrase,
-                    senses=data.get("senses", []),  # pyright: ignore[reportAny]
-                    translations={},
-                    master_key=phrase,
-                )
+        for path in ("idiom_dict/wiktionary-en.json", "idiom_dict/cherrypicked.json"):
+            with open(path, "r", encoding="utf-8") as f:
+                json_data = json.load(f)  # pyright: ignore[reportAny]
+                for phrase, data in json_data.items():  # pyright: ignore[reportAny]
+                    assert isinstance(phrase, str)
+                    normalised_dict[phrase] = IdiomEntry(
+                        idiom=phrase,
+                        senses=data.get("senses", []),  # pyright: ignore[reportAny]
+                        translations={},
+                        master_key=phrase,
+                    )
 
         with open("idiom_dict/idiomKB.json", "r", encoding="utf-8") as f:
             json_data = json.load(f)  # pyright: ignore[reportAny]
@@ -348,13 +349,14 @@ class Embedder:
                     ):
                         normalised_dict[phrase]["senses"].append(en_meaning)
                     normalised_dict[phrase]["translations"].update(translations)
-                else:
-                    normalised_dict[phrase] = IdiomEntry(
-                        idiom=phrase,
-                        senses=[en_meaning] if en_meaning else [],
-                        translations=translations,
-                        master_key=phrase,
-                    )
+                    continue
+
+                normalised_dict[phrase] = IdiomEntry(
+                    idiom=phrase,
+                    senses=[en_meaning] if en_meaning else [],
+                    translations=translations,
+                    master_key=phrase,
+                )
 
         for k, v in {**normalised_dict}.items():
             for variant in self._expand_phrase(k):
