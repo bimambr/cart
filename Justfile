@@ -3,7 +3,7 @@ set shell := ["bash", "-c"]
 model_url := "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q8_0.gguf?download=true"
 model_file := "gemma-4-E2B-it-Q8_0.gguf"
 embedder_file := "all-MiniLM-L6-v2"
-reranker_file := "mixedbread-ai/mxbai-rerank-xsmall-v1"
+reranker_file := "mixedbread-ai/mxbai-rerank-base-v2"
 port := "8127"
 ctx := "32768"
 

@@ -52,7 +52,7 @@ class Bail(Exception): ...
 ENDPOINT = "http://localhost:8127/v1/chat/completions"
 MODEL_NAME = "gemma-4-E2B-it-GGUF"
 EMBED_MODEL_NAME = "./all-MiniLM-L6-v2"
-RERANK_MODEL_NAME = "./mixedbread-ai/mxbai-rerank-xsmall-v1"
+RERANK_MODEL_NAME = "./mixedbread-ai/mxbai-rerank-base-v2"
 DEFAULT_N_ITERATIONS = 5
 MAX_N_ITERATIONS = 10
 DEFAULT_REFINEMENT_ITERATIONS = 3
