@@ -54,9 +54,6 @@ class SourceTextEntry(TypedDict):
     text: str
     type: str
     id: int
-
-    # RAG
-    external_knowledge: list[str]
     idiom_matches: Sequence["IdiomMatchResult"]
 
 
@@ -77,7 +74,6 @@ class Corpus(TypedDict):
     source_lang: str
     target_lang: str
     type: str
-    external_knowledge: list[str]
     texts: list["TextEntry"]
 
 

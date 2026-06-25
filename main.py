@@ -59,17 +59,6 @@ ARGS = get_parsed_args()
 logging.basicConfig(level=logging.DEBUG if ARGS.verbose else logging.INFO)
 
 
-def format_external_knowledge(external_knowledge: list[str]) -> str:
-    if not external_knowledge:
-        return ""
-
-    nl = "\n"
-    return f"""
-External retrieved knowledge:
-{nl.join([f"- {i}" for i in external_knowledge])}
-"""
-
-
 def format_idiom_knowledge(idioms: Sequence[IdiomMatchResult]) -> str:
     nl = "\n"
     if not idioms:
@@ -88,8 +77,6 @@ def format_context(state: State) -> str:
     source_text = state["source_text"]
     return f"""
 Text type: {source_text["type"]}
-
-{format_external_knowledge(source_text.get("external_knowledge", []))}
 
 {format_idiom_knowledge(source_text.get("idiom_matches", []))}
 """.strip()
