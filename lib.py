@@ -162,7 +162,7 @@ class Embedder:
                     candidates.append((phrase_idx, sense_idx, score))
                     rerank_pairs.append(
                         [
-                            f"{idiom_key}: {sense}",
+                            f"The idiomatic expression {idiom_key!r} meaning {sense!r}",
                             context,
                         ]
                     )
