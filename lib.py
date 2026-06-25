@@ -64,7 +64,7 @@ PUNCTUATIONS = ".,!?\"'()[]{}"
 MIN_SENTENCE_LENGTH = 5
 MIN_RETRIEVAL_SCORE = 0.1
 MIN_RERANK_SCORE = 0.6
-TOP_K = 50
+TOP_K = 100
 
 
 class LoadedEmbedder(Protocol):
