@@ -67,10 +67,19 @@ def format_idiom_knowledge(idioms: Sequence[IdiomMatchResult]) -> str:
     def format_senses(senses: list[str]) -> str:
         return "\n".join([f"  {j}. {k} " for j, k in enumerate(senses, start=1)])
 
-    return f"""
-Known idiom definitions:
-{nl.join([f"- Dictionary form: {i['idiom']}:{nl}{format_senses(i['senses'])}" for i in idioms])}
-"""
+    disclaimer = (
+        "=== POTENTIAL IDIOM SUGGESTIONS ===\n"
+        "An automated parser flagged the following phrases. These are unverified hints.\n"
+        "CRITICAL: Verify if the text uses the phrase figuratively or literally.\n"
+        "If a phrase is used literally (e.g., a physical journey), ignore the definition."
+    )
+    entries = nl.join(
+        [
+            f"- Phrase form: {i['idiom']}\n  Senses:\n{format_senses(i['senses'])}"
+            for i in idioms
+        ]
+    )
+    return f"\n{disclaimer}\n\n{entries}\n===================================="
 
 
 def format_context(state: State) -> str:
@@ -109,7 +118,7 @@ Text:
 
 
 OPTIMISER_INIT_PROMPT = """
-Translate the following text into {TARGET_LANG} using the provided context and dictionary definitions.
+Translate the following text into {TARGET_LANG}.
 
 {CONTEXT}
 
@@ -142,7 +151,7 @@ Output format:
 
 
 EVALUATOR_INIT_PROMPT = """
-Evaluate the translation using the provided context and dictionary definitions.
+Evaluate the translation using the rubric format.
 
 {CONTEXT}
 
@@ -584,8 +593,6 @@ class FileProcessor:
                 "text": text["content"],
                 "type": input_json.get("type", "general"),
                 "id": text_idx + 1,
-                "external_knowledge": input_json.get("external_knowledge", [])
-                + text.get("external_knowledge", []),
                 "idiom_matches": []
                 if ARGS.baseline
                 else await self.embedder.get_idiom_definitions(text["content"]),
