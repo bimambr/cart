@@ -252,7 +252,7 @@ def parse_translation(text: str) -> str:
     # strip away translation notes
     # usually the model uses *** to separate the content
     # this may break
-    text, _ = text.split("***", maxsplit=1)
+    text, *_ = text.split("***", maxsplit=1)
     match = re.search(
         r"Translation:\s*(.*)",
         text,
