@@ -206,9 +206,9 @@ def build_messages(
         if s.get("type") == ("evaluation" if is_evaluating else "attempt")
     ]:
         assert "prompt" in s
-        assert "raw_output" in s
+        assert "raw_content" in s
         messages.append(("user", s["prompt"], "user"))
-        messages.append(("assistant", s["raw_output"], "assistant"))
+        messages.append(("assistant", s["raw_content"], "assistant"))
 
     messages.append(("user", user_prompt, "user"))
     return messages
