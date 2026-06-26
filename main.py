@@ -399,12 +399,14 @@ async def handle_evaluation_state(state: State) -> None:
     last_attempt = state["history"][-1]
 
     assert last_attempt.get("type") == "attempt"
-    assert "translation" in last_attempt
+    assert "raw_content" in last_attempt
 
     system_prompt = EVALUATOR_SYSTEM_PROMPT
     prompt = (EVALUATOR_RETRY_PROMPT if is_retrying else EVALUATOR_INIT_PROMPT).format(
         SOURCE_TEXT=state["source_text"]["text"],
-        TRANSLATION_ATTEMPT=last_attempt["translation"],
+        TRANSLATION_ATTEMPT=re.sub(
+            r"^Translation:\s*", "", last_attempt["raw_content"]
+        ),
         CONTEXT=format_context(state),
     )
     temp = ARGS.evaluator_temperature
