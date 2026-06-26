@@ -141,10 +141,10 @@ class CLIArgs:
     refinement_iterations: int
     cache_prompt: bool
     save_output: bool
-    baseline: bool
     vectorise: bool
     match_idioms_only: bool
     verbose: bool
+    optimisation_level: int
 
 
 class Rubric(TypedDict):

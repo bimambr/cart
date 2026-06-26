@@ -268,7 +268,7 @@ async def handle_baseline_state(state: State) -> None:
     LOGGER.info(
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
-    system_prompt = TRANSLATOR_SYSTEM_PROMPT
+    system_prompt = TRANSLATOR_SYSTEM_PROMPT if ARGS.optimisation_level > 1 else ""
     prompt = BASELINE_PROMPT.format(
         TARGET_LANG=state["source_text"]["target_lang"],
         SOURCE_TEXT=state["source_text"]["text"],
@@ -283,15 +283,13 @@ async def handle_baseline_state(state: State) -> None:
         seed,
         timeout=ARGS.timeout,
         cache_prompt=ARGS.cache_prompt,
-        messages=[
-            ("system", system_prompt, "system"),
-            ("user", prompt, "user"),
-        ],
+        messages=([("system", system_prompt, "system")] if system_prompt else [])
+        + [("user", prompt, "user")],
     )
     state["history"].append(
         {
             "type": "attempt",
-            "translation": parse_translation(content),
+            "translation": parse_translation(content) or content,
             "raw_content": content,
             "raw_reasoning": reasoning,
             "prompt": prompt,
@@ -501,7 +499,7 @@ class FileProcessor:
             Corpus, json.loads(self.input_file.read_text("utf-8").strip())
         )
 
-        if not ARGS.baseline:
+        if ARGS.optimisation_level > 2:
             self.embedder.load_vectors()
 
         for text_idx, text in enumerate(input_json["texts"]):
@@ -520,9 +518,11 @@ class FileProcessor:
                 "text": text["content"],
                 "type": input_json.get("type", "general"),
                 "id": text_idx + 1,
-                "idiom_matches": []
-                if ARGS.baseline
-                else await self.embedder.get_idiom_definitions(text["content"]),
+                "idiom_matches": await self.embedder.get_idiom_definitions(
+                    text["content"]
+                )
+                if ARGS.optimisation_level > 2
+                else [],
             }
 
             await self._process_text(source_text)
@@ -547,7 +547,9 @@ class FileProcessor:
             state = State(
                 iteration_id=iteration_num,
                 source_text=source_text,
-                next_state="baseline" if ARGS.baseline else "optimisation",
+                next_state="optimisation"
+                if ARGS.optimisation_level > 2
+                else "baseline",
                 max_attempt=ARGS.refinement_iterations,
                 attempt=0,
                 history=[],
@@ -581,7 +583,13 @@ async def main():
     output_files = [
         get_next_available_path(
             root
-            / ("baseline_attempts" if ARGS.baseline else "evaluator_optimiser_attempts")
+            / (
+                "baseline_attempts"
+                if ARGS.optimisation_level == 1
+                else "baseline_with_persona_attempts"
+                if ARGS.optimisation_level == 2
+                else "evaluator_optimiser_attempts"
+            )
             / f"{p.stem}_translated_{ARGS.model}_attempt.jsonl"
         )
         for p in input_files
