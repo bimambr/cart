@@ -14,18 +14,12 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRA
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 if TYPE_CHECKING:
     import aiohttp
-
-
-class CSVWriter(Protocol):
-    def writerow(self, row: Iterable[Any], /) -> Any: ...  # pyright: ignore[reportExplicitAny, reportAny]
-
-    def writerows(self, rows: Iterable[Iterable[Any]], /) -> None: ...  # pyright: ignore[reportExplicitAny]
 
 
 class TranslationAttempt(TypedDict, total=False):
@@ -69,7 +63,6 @@ class State(TypedDict):
     optimiser_seed: int
     evaluator_seed: int
     client: "aiohttp.ClientSession"
-    csv_writer: "CSVWriter | None"
 
 
 class Corpus(TypedDict):

@@ -15,12 +15,10 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 import asyncio
-import csv
 import json
 import logging
 import re
 import signal
-import time
 from collections.abc import Sequence
 from io import TextIOWrapper
 from pathlib import Path
@@ -30,7 +28,6 @@ from typing import Final, Literal, cast, overload
 import aiohttp
 
 from _types import (
-    CSVWriter,
     Corpus,
     IdiomMatchResult,
     Rubric,
@@ -304,29 +301,6 @@ async def handle_baseline_state(state: State) -> None:
         }
     )
 
-    if csv_writer := state.get("csv_writer"):
-        csv_writer.writerow(
-            (
-                state["source_text"]["id"],
-                state["iteration_id"],
-                state["attempt"],
-                seed,
-                temp,
-                0,
-                0,
-                state["source_text"]["text"],
-                output,
-                {},
-                output,
-                "N/A",
-                time.ctime(),
-                "N/A",
-                prompt,
-                "N/A",
-                "N/A",
-            )
-        )
-
 
 async def handle_optimisation_state(state: State) -> None:
     state["attempt"] += 1
@@ -457,35 +431,6 @@ async def handle_evaluation_state(state: State) -> None:
         "raw_reasoning": reasoning,
     }
     state["history"].append(evaluation)
-
-    if csv_writer := state.get("csv_writer"):
-        assert "translation" in last_attempt
-        assert "raw_output" in last_attempt
-        assert "rubric" in evaluation
-        assert "raw_output" in evaluation
-
-        csv_writer.writerow(
-            (
-                state["source_text"]["id"],
-                state["iteration_id"],
-                state["attempt"],
-                last_attempt.get("seed", -1),
-                last_attempt.get("temp", -1),
-                seed,
-                ARGS.evaluator_temperature,
-                state["source_text"]["text"],
-                last_attempt["translation"],
-                evaluation["rubric"],
-                last_attempt["raw_output"],
-                evaluation["raw_output"],
-                time.ctime(),
-                last_attempt.get("system_prompt", "Not available."),
-                last_attempt.get("prompt", "Not available."),
-                "",
-                prompt,
-            )
-        )
-
     state["next_state"] = "optimisation"
     if (
         sum(rubric[i]["score"] for i in ("accuracy", "acceptability", "readability"))
@@ -496,26 +441,6 @@ async def handle_evaluation_state(state: State) -> None:
 
 
 class FileProcessor:
-    CSV_HEADER: tuple[str, ...] = (
-        "text_id",
-        "iteration_id",
-        "attempt",
-        "optimiser_seed",
-        "optimiser_temp",
-        "evaluator_seed",
-        "evaluator_temp",
-        "source_text",
-        "translation_attempt",
-        "grade",
-        "raw_translation",
-        "raw_evaluation",
-        "timestamp",
-        "optimiser_system_prompt",
-        "optimiser_user_prompt",
-        "evaluator_system_prompt",
-        "evaluator_user_prompt",
-    )
-
     STATE_HANDLERS: Final = {
         "baseline": handle_baseline_state,
         "optimisation": handle_optimisation_state,
@@ -534,8 +459,6 @@ class FileProcessor:
         self.input_file: Path = input_file
         self.output_file: Path = output_file
 
-        self.csv_file: TextIOWrapper | None = None
-        self.csv_writer: CSVWriter | None = None
         self.log_file: TextIOWrapper | None = None
 
         self.client: aiohttp.ClientSession = client
@@ -547,16 +470,8 @@ class FileProcessor:
 
         self.output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        if not self.csv_file:
-            self.csv_file = open(self.output_file, "w", newline="", encoding="utf-8")
-            self.csv_writer = csv.writer(self.csv_file)
-            self.csv_writer.writerow(self.CSV_HEADER)
-            LOGGER.info("Output will be saved to: %s", self.output_file)
-
         if not self.log_file:
-            self.log_file = open(
-                self.output_file.with_suffix(".jsonl"), "w", encoding="utf-8"
-            )
+            self.log_file = open(self.output_file, "w", encoding="utf-8")
 
     async def __aenter__(self) -> "FileProcessor":
         return self
@@ -567,13 +482,9 @@ class FileProcessor:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        if self.csv_file:
-            self.csv_file.close()
-            self.csv_file = None
         if self.log_file:
             self.log_file.close()
             self.log_file = None
-        self.csv_writer = None
 
     async def process(self) -> None:
         if not self.input_file.exists():
@@ -641,17 +552,13 @@ class FileProcessor:
                 optimiser_seed=SEEDS[i],
                 evaluator_seed=EVALUATOR_SEED,
                 client=self.client,
-                csv_writer=self.csv_writer,
             )
 
             while handler := self.STATE_HANDLERS.get(state["next_state"]):
                 await handler(state)
-                _ = self.csv_file and self.csv_file.flush()
 
             if self.log_file:
-                loggable_state = {
-                    k: v for k, v in state.items() if k not in ("client", "csv_writer")
-                }
+                loggable_state = {k: v for k, v in state.items() if k not in ("client")}
                 _ = self.log_file.write(
                     json.dumps(loggable_state, ensure_ascii=False, indent=4) + "\n"
                 )
@@ -673,7 +580,7 @@ async def main():
         get_next_available_path(
             root
             / ("baseline_attempts" if ARGS.baseline else "evaluator_optimiser_attempts")
-            / f"{p.stem}_translated_{ARGS.model}_attempt.csv"
+            / f"{p.stem}_translated_{ARGS.model}_attempt.jsonl"
         )
         for p in input_files
     ]
