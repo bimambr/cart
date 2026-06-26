@@ -66,9 +66,7 @@ def format_idiom_knowledge(idioms: Sequence[IdiomMatchResult]) -> str:
 
     disclaimer = (
         "=== POTENTIAL IDIOM SUGGESTIONS ===\n"
-        "An automated parser flagged the following phrases. These are unverified hints.\n"
-        "CRITICAL: Verify if the text uses the phrase figuratively or literally.\n"
-        "If a phrase is used literally (e.g., a physical journey), ignore the definition."
+        "The following are possible meanings of matched phrases. Use them only if they are consistent with the surrounding context."
     )
     entries = nl.join(
         [
@@ -100,32 +98,27 @@ TRANSLATOR_SYSTEM_PROMPT = """
 You are an expert literary translator specialising in dynamic equivalence. 
 
 Your goal is to convey the psychological subtext, tone, and idiomatic impact of the source text so that it reads as an original work in the target language. Avoid literal translations, syntactic calques, and word-for-word substitutions of idioms.
-
-Output format:
-Translation: <the complete translated text>
 """.strip()
 
 
-BASELINE_PROMPT = """
-Translate the following text into {TARGET_LANG}.
-
-Text:
-{SOURCE_TEXT}
-""".strip()
+TRANSLATOR_GRAMMAR = """
+root     ::= <|channel> "thought" thinking <channel|> "Translation: " .*
+thinking ::= !<channel|>*
+"""
 
 
 OPTIMISER_INIT_PROMPT = """
-Translate the following text into {TARGET_LANG}.
-
-{CONTEXT}
+Translate the following text into {TARGET_LANG}. Only output the translation.
 
 Text:
 {SOURCE_TEXT}
+
+{CONTEXT}
 """.strip()
 
 
 OPTIMISER_RETRY_PROMPT = """
-You are given grades on a 1–3 scale and feedback regarding your translation.
+You are given grades on a 1–3 scale and feedback regarding your translation. Revise accordingly and output the complete revised translation.
 
 Feedback:
 {GRADES}
@@ -140,23 +133,28 @@ Evaluate based on these strict definitions:
 - acceptability: Does the translation sound like natural prose written native-to-native, or does it sound like "translationese" (English syntax/idioms masquerading as target language words)?
 - readability: Flow, rhythm, and coherence.
 
-Output format:
-- accuracy: <1-3>. <brief reason>
-- acceptability: <1-3>. <brief reason>
-- readability: <1-3>. <brief reason>
+Each aspect uses an ordinal scale of 1 to 3 (the greater the better).
 """.strip()
+
+
+EVALUATOR_GRAMMAR = r"""
+root    ::= <|channel> "thought" thinking <channel|> "- accuracy: " score ". " reason "\n- acceptability: " score ". " reason "\n- readability: " score ". " reason "\n"?
+score   ::= [1-3]
+reason  ::= [^\n]+
+thinking ::= !<channel|>*
+"""
 
 
 EVALUATOR_INIT_PROMPT = """
 Evaluate the translation using the rubric format.
-
-{CONTEXT}
 
 Text:
 {SOURCE_TEXT}
 
 Translation:
 {TRANSLATION_ATTEMPT}
+
+{CONTEXT}
 """.strip()
 
 
@@ -243,16 +241,6 @@ def parse_rubric(text: str) -> Rubric:
 
 
 def parse_translation(text: str) -> str:
-    # likely a commentary from the LM
-    # sometimes the LM doesn't follow the formats and
-    # output the justification for the translation instead.
-    if not text.startswith("Translation:"):
-        return ""
-
-    # strip away translation notes
-    # usually the model uses *** to separate the content
-    # this may break
-    text, *_ = text.split("***", maxsplit=1)
     match = re.search(
         r"Translation:\s*(.*)",
         text,
@@ -269,10 +257,12 @@ async def handle_baseline_state(state: State) -> None:
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
     system_prompt = TRANSLATOR_SYSTEM_PROMPT if ARGS.optimisation_level > 1 else ""
-    prompt = BASELINE_PROMPT.format(
+    # baseline borrows optimiser init prompt with an empty context
+    prompt = OPTIMISER_INIT_PROMPT.format(
         TARGET_LANG=state["source_text"]["target_lang"],
         SOURCE_TEXT=state["source_text"]["text"],
-    )
+        CONTEXT="",
+    ).strip()
     temp = ARGS.optimiser_init_temperature
     seed = state["optimiser_seed"]
     reasoning, content = await run_inference(
@@ -283,6 +273,7 @@ async def handle_baseline_state(state: State) -> None:
         seed,
         timeout=ARGS.timeout,
         cache_prompt=ARGS.cache_prompt,
+        grammar=TRANSLATOR_GRAMMAR,
         messages=([("system", system_prompt, "system")] if system_prompt else [])
         + [("user", prompt, "user")],
     )
@@ -361,6 +352,7 @@ async def handle_optimisation_state(state: State) -> None:
         temp,
         seed,
         timeout=ARGS.timeout,
+        grammar=TRANSLATOR_GRAMMAR,
         cache_prompt=ARGS.cache_prompt,
         messages=messages,
     )
@@ -417,6 +409,7 @@ async def handle_evaluation_state(state: State) -> None:
         seed,
         timeout=ARGS.timeout,
         cache_prompt=ARGS.cache_prompt,
+        grammar=EVALUATOR_GRAMMAR,
         messages=messages,
     )
     rubric = parse_rubric(content)
