@@ -318,10 +318,10 @@ class Embedder:
         LOGGER.info("Saved to %s", VECTORISED_DICTIONARY_PATH)
 
 
-async def stream_response(response: aiohttp.ClientResponse) -> str:
+async def stream_response(response: aiohttp.ClientResponse) -> tuple[str, str]:
     json_data: StreamingResponse = {}
-    full_response = ""
-    chunk = ""
+    reasoning = ""
+    content = ""
 
     LOGGER.info("Streaming response...")
     async for line in response.content:
@@ -334,23 +334,29 @@ async def stream_response(response: aiohttp.ClientResponse) -> str:
         try:
             json_data = cast(StreamingResponse, json.loads(data))
             delta = json_data.get("choices", [{}])[0].get("delta", {})
-            reasoning = delta.get("reasoning_content") or ""
-            chunk = (delta.get("content")) or ""
-            full_response += chunk
-            if reasoning:
-                print(reasoning, end="", flush=True)
-            if chunk:
-                print(chunk, end="", flush=True)
+            reasoning_chunk = delta.get("reasoning_content") or ""
+            content_chunk = (delta.get("content")) or ""
+
+            if reasoning_chunk:
+                print(reasoning_chunk, end="", flush=True)
+            if content_chunk:
+                if not content:
+                    # reasoning end
+                    print("\n\n", end="")
+                print(content_chunk, end="", flush=True)
+
+            reasoning += reasoning_chunk
+            content += content_chunk
         except json.JSONDecodeError:
             LOGGER.error("Failed to decode JSON chunk: %s", data)
 
-    if not chunk.endswith("\n"):
+    if not content.endswith("\n"):
         print()
 
     LOGGER.info("Completed streaming response. Last chunk: %s", json_data)
     # let llama-server disconnect
     await asyncio.sleep(0.1)
-    return full_response.strip()
+    return reasoning.strip(), content.strip()
 
 
 async def run_inference(
@@ -364,7 +370,7 @@ async def run_inference(
     cache_prompt: bool = False,
     enable_thinking: bool = True,
     messages: list[tuple[str, str, str]] | None = None,
-) -> str:
+) -> tuple[str, str]:
     LOGGER.info("Hitting %s with temp=%f, seed=%d", endpoint, temperature, seed)
     for i in range(3):
         LOGGER.debug("Trying attempt %d...", i + 1)
@@ -402,9 +408,9 @@ async def run_inference(
             continue
         except json.JSONDecodeError:
             LOGGER.error("Failed to decode JSON from response.")
-            return "Failed to decode JSON from response."
+            return "", "Failed to decode JSON from response."
 
-    return "API request failed"
+    return "", "API request failed"
 
 
 async def wait(awaitable: Awaitable[T], event: asyncio.Event) -> T:

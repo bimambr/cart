@@ -31,7 +31,8 @@ class CSVWriter(Protocol):
 class TranslationAttempt(TypedDict, total=False):
     type: Literal["attempt"]
     translation: str
-    raw_output: str
+    raw_content: str
+    raw_reasoning: str
     prompt: str
     system_prompt: str
     seed: int
@@ -41,7 +42,8 @@ class TranslationAttempt(TypedDict, total=False):
 class TranslationEvaluation(TypedDict, total=False):
     type: Literal["evaluation"]
     rubric: "Rubric"
-    raw_output: str
+    raw_content: str
+    raw_reasoning: str
     prompt: str
     system_prompt: str
     seed: int

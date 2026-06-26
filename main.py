@@ -218,19 +218,22 @@ def build_messages(
 
 
 def parse_rubric(text: str) -> Rubric:
+    text = re.sub(
+        r"^Grades:\s*",
+        "",
+        text,
+    )
     rubric: Rubric = {
         "accuracy": {"score": 0, "feedback": "Missing feedback."},
         "acceptability": {"score": 0, "feedback": "Missing feedback."},
         "readability": {"score": 0, "feedback": "Missing feedback."},
     }
-
     pattern = re.compile(
         r"\*{0,2}\s*(accuracy|acceptability|readability)\s*:\s*\*{0,2}\s*(\d+)\s*\*{0,2}\s*\.*\s*"
         + r"([\s\S]*?)"
         + r"(?=\*{0,2}\s*(?:accuracy|acceptability|readability)\s*:|\Z)",
         re.IGNORECASE,
     )
-
     for match in pattern.finditer(text):
         key, score, feedback = match.groups()
         normalised_key = key.lower()
@@ -239,8 +242,26 @@ def parse_rubric(text: str) -> Rubric:
             "score": int(score),
             "feedback": feedback.strip(),
         }
-
     return rubric
+
+
+def parse_translation(text: str) -> str:
+    # likely a commentary from the LM
+    # sometimes the LM doesn't follow the formats and
+    # output the justification for the translation instead.
+    if not text.startswith("Translation:"):
+        return ""
+
+    # strip away translation notes
+    # usually the model uses *** to separate the content
+    # this may break
+    text, _ = text.split("***", maxsplit=1)
+    match = re.search(
+        r"Translation:\s*(.*)",
+        text,
+        re.IGNORECASE | re.DOTALL,
+    )
+    return match.group(1).strip() if match else text.strip()
 
 
 async def handle_baseline_state(state: State) -> None:
@@ -250,33 +271,34 @@ async def handle_baseline_state(state: State) -> None:
     LOGGER.info(
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
+    system_prompt = TRANSLATOR_SYSTEM_PROMPT
     prompt = BASELINE_PROMPT.format(
         TARGET_LANG=state["source_text"]["target_lang"],
         SOURCE_TEXT=state["source_text"]["text"],
     )
     temp = ARGS.optimiser_init_temperature
     seed = state["optimiser_seed"]
-    output = (
-        await run_inference(
-            state["client"],
-            ARGS.endpoint,
-            ARGS.model,
-            temp,
-            seed,
-            timeout=ARGS.timeout,
-            cache_prompt=ARGS.cache_prompt,
-            messages=[
-                ("system", TRANSLATOR_SYSTEM_PROMPT, "system"),
-                ("user", prompt, "user"),
-            ],
-        )
-    ).strip()
+    reasoning, content = await run_inference(
+        state["client"],
+        ARGS.endpoint,
+        ARGS.model,
+        temp,
+        seed,
+        timeout=ARGS.timeout,
+        cache_prompt=ARGS.cache_prompt,
+        messages=[
+            ("system", system_prompt, "system"),
+            ("user", prompt, "user"),
+        ],
+    )
     state["history"].append(
         {
             "type": "attempt",
-            "translation": output,
-            "raw_output": output,
+            "translation": parse_translation(content),
+            "raw_content": content,
+            "raw_reasoning": reasoning,
             "prompt": prompt,
+            "system_prompt": system_prompt,
             "seed": seed,
             "temp": temp,
         }
@@ -323,6 +345,7 @@ async def handle_optimisation_state(state: State) -> None:
     )
 
     context = format_context(state)
+    system_prompt = TRANSLATOR_SYSTEM_PROMPT
     if is_draft:
         prompt = OPTIMISER_INIT_PROMPT.format(
             SOURCE_TEXT=state["source_text"]["text"],
@@ -358,31 +381,25 @@ async def handle_optimisation_state(state: State) -> None:
         else ARGS.optimiser_retry_temperature
     )
     seed = state["optimiser_seed"] * 10 + state["attempt"]
-    messages = build_messages(state, TRANSLATOR_SYSTEM_PROMPT, prompt)
-    output = (
-        await run_inference(
-            state["client"],
-            ARGS.endpoint,
-            ARGS.model,
-            temp,
-            seed,
-            timeout=ARGS.timeout,
-            cache_prompt=ARGS.cache_prompt,
-            messages=messages,
-        )
-    ).strip()
-    match = re.search(
-        r"Translation:\s*(.*)",
-        output,
-        re.IGNORECASE | re.DOTALL,
+    messages = build_messages(state, system_prompt, prompt)
+    reasoning, content = await run_inference(
+        state["client"],
+        ARGS.endpoint,
+        ARGS.model,
+        temp,
+        seed,
+        timeout=ARGS.timeout,
+        cache_prompt=ARGS.cache_prompt,
+        messages=messages,
     )
-    translation = match.group(1).strip() if match else output.strip()
     state["history"].append(
         {
             "type": "attempt",
-            "translation": translation,
-            "raw_output": output,
+            "translation": parse_translation(content),
+            "raw_content": content,
+            "raw_reasoning": reasoning,
             "prompt": prompt,
+            "system_prompt": system_prompt,
             "seed": seed,
             "temp": temp,
         }
@@ -410,37 +427,34 @@ async def handle_evaluation_state(state: State) -> None:
     assert last_attempt.get("type") == "attempt"
     assert "translation" in last_attempt
 
+    system_prompt = EVALUATOR_SYSTEM_PROMPT
     prompt = (EVALUATOR_RETRY_PROMPT if is_retrying else EVALUATOR_INIT_PROMPT).format(
         SOURCE_TEXT=state["source_text"]["text"],
         TRANSLATION_ATTEMPT=last_attempt["translation"],
         CONTEXT=format_context(state),
     )
-    messages = build_messages(state, EVALUATOR_SYSTEM_PROMPT, prompt)
-    output = (
-        await run_inference(
-            state["client"],
-            ARGS.endpoint,
-            ARGS.model,
-            ARGS.evaluator_temperature,
-            seed,
-            timeout=ARGS.timeout,
-            cache_prompt=ARGS.cache_prompt,
-            messages=messages,
-        )
-    ).strip()
-    match = re.search(
-        r"Grades:\s*(.*)",
-        output,
-        re.IGNORECASE | re.DOTALL,
+    temp = ARGS.evaluator_temperature
+    messages = build_messages(state, system_prompt, prompt)
+    reasoning, content = await run_inference(
+        state["client"],
+        ARGS.endpoint,
+        ARGS.model,
+        temp,
+        seed,
+        timeout=ARGS.timeout,
+        cache_prompt=ARGS.cache_prompt,
+        messages=messages,
     )
-    rubric = parse_rubric((match.group(1) if match else output).strip())
+    rubric = parse_rubric(content)
     evaluation: TranslationEvaluation = {
         "type": "evaluation",
         "prompt": prompt,
+        "system_prompt": system_prompt,
         "seed": seed,
-        "temp": ARGS.evaluator_temperature,
+        "temp": temp,
         "rubric": rubric,
-        "raw_output": output,
+        "raw_content": content,
+        "raw_reasoning": reasoning,
     }
     state["history"].append(evaluation)
 
