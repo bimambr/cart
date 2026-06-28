@@ -21,7 +21,7 @@ import json
 import os
 import random
 import sys
-from typing import TypedDict, cast
+from typing import Literal, TypedDict, cast
 
 from _types import State, TranslationAttempt
 
@@ -38,25 +38,27 @@ class ScrambledRow(TypedDict):
     source_text: str
     translation_A: str
     translation_B: str
+    translation_C: str
+    translation_D: str
 
 
 class KeyEntry(TypedDict):
     text_id: int
-    translation_A: str
-    translation_B: str
+    mapping: dict[Literal["A", "B", "C", "D"], Literal["T1", "T2", "T3", "T4"]]
 
 
 @dataclass
 class _CLIArgs:
-    baseline: str
-    ce: str
+    T1: str
+    T2: str
+    T34: str
     idioms: str
     out_csv: str
     out_key: str
     override: bool
 
 
-def load_jsonl_translations(filepath: str) -> dict[int, Entry]:
+def load_jsonl_translations(filepath: str, grab_last: bool = False) -> dict[int, Entry]:
     data: dict[int, Entry] = {}
     decoder = json.JSONDecoder()
     buffer = ""
@@ -86,7 +88,9 @@ def load_jsonl_translations(filepath: str) -> dict[int, Entry]:
                     for h in history
                     if h.get("type") == "attempt"
                 ]
-                translation = (attempts or [{}])[-1].get("translation") or "N/A"
+                translation = (attempts or [{}])[-1 if grab_last else 0].get(
+                    "translation"
+                ) or "N/A"
                 data[text_id] = {
                     "text_id": text_id,
                     "source_text": source_entry.get("text", ""),
@@ -100,12 +104,16 @@ def main():
         description="Scramble baseline and CE translations for blind ABX testing."
     )
     _ = parser.add_argument(
-        "baseline",
-        help="Path to baseline.jsonl",
+        "T1",
+        help="Path to T1.jsonl (baseline)",
     )
     _ = parser.add_argument(
-        "ce",
-        help="Path to context_engineered.jsonl",
+        "T2",
+        help="Path to T2.jsonl (system prompt)",
+    )
+    _ = parser.add_argument(
+        "T34",
+        help="Path to T34.jsonl (RAG + self-refine)",
     )
     _ = parser.add_argument(
         "idioms",
@@ -130,10 +138,17 @@ def main():
     )
     args = parser.parse_args(namespace=_CLIArgs)
 
-    base_map = load_jsonl_translations(args.baseline)
-    ce_map = load_jsonl_translations(args.ce)
+    t1_map = load_jsonl_translations(args.T1)
+    t2_map = load_jsonl_translations(args.T2)
+    # T3 and T4 are generated sequentially
+    # T4 is T3 with self-refine, so T3 == T34[0] and T4 == T34[-1]
+    t3_map = load_jsonl_translations(args.T34)
+    t4_map = load_jsonl_translations(args.T34, grab_last=True)
 
-    common_ids = sorted(list(set(base_map.keys()) & set(ce_map.keys())))
+    # t4_map derives from t3_map, so we don't have to include it here
+    common_ids = sorted(
+        list(set(t1_map.keys()) & set(t2_map.keys()) & set(t3_map.keys()))
+    )
     if not common_ids:
         print("Error: No matching text IDs found between files.", file=sys.stderr)
         sys.exit(1)
@@ -146,10 +161,14 @@ def main():
     pair_counter = 1
 
     for text_id in common_ids:
-        b_item = base_map[text_id]
-        c_item = ce_map[text_id]
+        items = {
+            "T1": t1_map[text_id]["translation"],
+            "T2": t2_map[text_id]["translation"],
+            "T3": t3_map[text_id]["translation"],
+            "T4": t4_map[text_id]["translation"],
+        }
 
-        lowered = b_item["source_text"].lower()
+        lowered = t1_map[text_id]["source_text"].lower()
         detected_idioms = [i for i in idioms if i.lower() in lowered]
 
         if not detected_idioms:
@@ -157,28 +176,25 @@ def main():
             continue
 
         for idiom in detected_idioms:
-            flip = random.choice([True, False])
-            if flip:
-                trans_a, label_a = c_item["translation"], "ce"
-                trans_b, label_b = b_item["translation"], "baseline"
-            else:
-                trans_a, label_a = b_item["translation"], "baseline"
-                trans_b, label_b = c_item["translation"], "ce"
-
+            labels = ["T1", "T2", "T3", "T4"]
+            random.shuffle(labels)
+            row_mapping = {
+                col: label for col, label in zip(["A", "B", "C", "D"], labels)
+            }
             scrambled_rows.append(
                 ScrambledRow(
                     pair_id=pair_counter,
                     target_idiom=idiom,
-                    source_text=b_item["source_text"],
-                    translation_A=trans_a,
-                    translation_B=trans_b,
+                    source_text=t1_map[text_id]["source_text"],
+                    translation_A=items[row_mapping["A"]],
+                    translation_B=items[row_mapping["B"]],
+                    translation_C=items[row_mapping["C"]],
+                    translation_D=items[row_mapping["D"]],
                 )
             )
-
             key_mapping[str(pair_counter)] = {
                 "text_id": text_id,
-                "translation_A": label_a,
-                "translation_B": label_b,
+                "mapping": row_mapping,
             }
             pair_counter += 1
 
@@ -190,12 +206,20 @@ def main():
         "target_idiom",
         "translation_A",
         "translation_B",
+        "translation_C",
+        "translation_D",
         "accuracy_A",
         "acceptability_A",
         "readability_A",
         "accuracy_B",
         "acceptability_B",
         "readability_B",
+        "accuracy_C",
+        "acceptability_C",
+        "readability_C",
+        "accuracy_D",
+        "acceptability_D",
+        "readability_D",
     ]
 
     if (
@@ -217,6 +241,12 @@ def main():
                     "accuracy_B": "",
                     "acceptability_B": "",
                     "readability_B": "",
+                    "accuracy_C": "",
+                    "acceptability_C": "",
+                    "readability_C": "",
+                    "accuracy_D": "",
+                    "acceptability_D": "",
+                    "readability_D": "",
                 }
             )
 

@@ -16,15 +16,19 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
 import csv
-from dataclasses import dataclass
 import json
 import sys
+from dataclasses import dataclass
 from typing import TypedDict, cast
+
 import numpy as np
-from scipy.stats import wilcoxon, rankdata
+import pandas as pd
+import scikit_posthocs as sp  # pyright: ignore[reportMissingTypeStubs]
+from scipy.stats import friedmanchisquare
 
 from scrambler import KeyEntry
 
+TREATMENTS = ("T1", "T2", "T3", "T4")
 METRICS = ("accuracy", "acceptability", "readability", "weighted_tqa")
 
 
@@ -46,72 +50,76 @@ class UnscrambledRow(TypedDict):
     text_id: int
     source_text: str
     target_idiom: str
-    baseline_translation: str
-    ce_translation: str
-    baseline_accuracy: float
-    baseline_acceptability: float
-    baseline_readability: float
-    baseline_weighted_tqa: float
-    ce_accuracy: float
-    ce_acceptability: float
-    ce_readability: float
-    ce_weighted_tqa: float
+    T1_translation: str
+    T2_translation: str
+    T3_translation: str
+    T4_translation: str
+    T1_accuracy: float
+    T1_acceptability: float
+    T1_readability: float
+    T1_weighted_tqa: float
+    T2_accuracy: float
+    T2_acceptability: float
+    T2_readability: float
+    T2_weighted_tqa: float
+    T3_accuracy: float
+    T3_acceptability: float
+    T3_readability: float
+    T3_weighted_tqa: float
+    T4_accuracy: float
+    T4_acceptability: float
+    T4_readability: float
+    T4_weighted_tqa: float
 
 
 def calculate_tqa(acc: float, accp: float, read: float) -> float:
     return ((acc * 3) + (accp * 2) + (read * 1)) / 6
 
 
-def save_stat_report(
-    filename: str, metric_name: str, base_scores: list[float], ce_scores: list[float]
-):
-    base_arr = np.array(base_scores, dtype=np.float64)
-    ce_arr = np.array(ce_scores, dtype=np.float64)
-    base_median = cast(float, np.median(base_arr))
-    ce_median = cast(float, np.median(ce_arr))
-    base_mean = np.mean(base_arr)
-    ce_mean = np.mean(ce_arr)
-    diffs = ce_arr - base_arr
-    nonzero = diffs[diffs != 0]
-    n_total = len(diffs)
-    n_pos = np.sum(diffs > 0)
-    n_neg = np.sum(diffs < 0)
-    n_active = len(nonzero)
-    n_zero = n_total - n_active
-    median_diff = np.median(diffs)
-    W_plus, W_minus, stat, p_val, rank_biserial = np.nan, np.nan, np.nan, 1.0, np.nan
+def run_anova(metric_name: str, stores: dict[str, dict[str, list[float]]]):
+    t1 = np.array(stores["t1"][metric_name])
+    t2 = np.array(stores["t2"][metric_name])
+    t3 = np.array(stores["t3"][metric_name])
+    t4 = np.array(stores["t4"][metric_name])
 
-    if nonzero.size > 0:
-        try:
-            res = wilcoxon(ce_arr, base_arr)
-            stat, p_val = res.statistic, res.pvalue
-            ranks = rankdata(np.abs(nonzero))
-            W_plus = np.sum(ranks[nonzero > 0])
-            W_minus = np.sum(ranks[nonzero < 0])
-            rank_biserial = (W_plus - W_minus) / (W_plus + W_minus)
-        except ValueError:
-            pass
+    n_blocks = len(t1)
 
-    with open(filename, "w", encoding="utf-8") as f:
+    stat, p_omnibus = friedmanchisquare(t1, t2, t3, t4)
+    df = pd.DataFrame(
+        {
+            "score": np.concatenate([t1, t2, t3, t4]),
+            "treatment": ["T1_Base"] * n_blocks
+            + ["T2_Sys"] * n_blocks
+            + ["T3_RAG"] * n_blocks
+            + ["T4_Refine"] * n_blocks,
+            "block": list(range(n_blocks)) * 4,
+        }
+    )
+    p_matrix = sp.posthoc_conover_friedman(  # pyright: ignore[reportUnknownMemberType]
+        df,
+        y_col="score",
+        group_col="treatment",
+        block_col="block",
+        melted=True,
+        p_adjust="holm",
+    )
+
+    with open(f"anova_results_{metric_name}.txt", "w", encoding="utf-8") as f:
         # fmt: off
-        _ = f.write(f"=== Wilcoxon Signed-Rank Test Report: {metric_name} ===\n\n")
+        _ = f.write(f"=== Friedman ANOVA & Post-Hoc Report: {metric_name.upper()} ===\n\n")
+        _ = f.write(f"Sample Size (N Blocks)   : {n_blocks}\n")
+        _ = f.write(f"Friedman Chi-Square      : {stat:.4f}\n")
+        _ = f.write(f"Omnibus p-value          : {p_omnibus:.6f}\n\n")
 
-        _ = f.write("--- DESCRIPTIVE STATISTICS ---\n")
-        _ = f.write(f"Baseline (Mean / Median)        : {base_mean:.4f} / {base_median:.4f}\n")
-        _ = f.write(f"Context-Engineered (Mean / Med) : {ce_mean:.4f} / {ce_median:.4f}\n")
-        _ = f.write(f"Median of Differences           : {median_diff:.4f}\n\n")
+        _ = f.write("--- DESCRIPTIVE STATISTICS (Means) ---\n")
+        _ = f.write(f"T1 (Baseline Direct)     : {np.mean(t1):.4f}\n")
+        _ = f.write(f"T2 (System Prompt)       : {np.mean(t2):.4f}\n")
+        _ = f.write(f"T3 (System + RAG)        : {np.mean(t3):.4f}\n")
+        _ = f.write(f"T4 (System + RAG + Ref)  : {np.mean(t4):.4f}\n\n")
 
-        _ = f.write("--- SAMPLE DISTRIBUTION DATA ---\n")
-        _ = f.write(f"Total Paired Items (N)          : {n_total}\n")
-        _ = f.write(f"Excluded Zero-Differences       : {n_zero}\n")
-        _ = f.write(f"Effective Sample Size (n_active): {n_active}\n")
-        _ = f.write(f"Positive Changes (CE > Base)    : {n_pos}\n")
-        _ = f.write(f"Negative Changes (CE < Base)    : {n_neg}\n\n")
-
-        _ = f.write("--- INFERENTIAL TEST METRICS ---\n")
-        _ = f.write(f"W+ / W- / min(W+, W-)           : {W_plus} / {W_minus} / {stat} \n")
-        _ = f.write(f"p-value                         : {p_val:.6f}\n")
-        _ = f.write(f"Rank-Biserial Effect Size (r)   : {rank_biserial:.4f}\n")
+        _ = f.write("--- POST-HOC PAIRWISE CONOVER P-MATRICES (Holm-Adjusted) ---\n")
+        _ = f.write(p_matrix.to_string())
+        _ = f.write("\n")
 
 
 def main():
@@ -132,20 +140,14 @@ def main():
         key_mapping = cast("dict[str, KeyEntry]", json.load(f))
 
     data_store: dict[str, Metrics] = {
-        "baseline": Metrics(
-            accuracy=[],
-            acceptability=[],
-            readability=[],
-            weighted_tqa=[],
-        ),
-        "ce": Metrics(
-            accuracy=[],
-            acceptability=[],
-            readability=[],
-            weighted_tqa=[],
-        ),
+        t: {
+            "accuracy": [],
+            "acceptability": [],
+            "readability": [],
+            "weighted_tqa": [],
+        }
+        for t in TREATMENTS
     }
-
     unscrambled_rows: list[UnscrambledRow] = []
 
     with open(args.evaluated_csv, "r", encoding="utf-8") as f:
@@ -155,16 +157,31 @@ def main():
             if pid not in key_mapping:
                 continue
 
-            mapping = key_mapping[pid]
+            mapping = key_mapping[pid]["mapping"]
 
             try:
-                acc_A = float(row["accuracy_A"])
-                accp_A = float(row["acceptability_A"])
-                read_A = float(row["readability_A"])
-
-                acc_B = float(row["accuracy_B"])
-                accp_B = float(row["acceptability_B"])
-                read_B = float(row["readability_B"])
+                scores = {
+                    "A": {
+                        "acc": float(row["accuracy_A"]),
+                        "accp": float(row["acceptability_A"]),
+                        "read": float(row["readability_A"]),
+                    },
+                    "B": {
+                        "acc": float(row["accuracy_B"]),
+                        "accp": float(row["acceptability_B"]),
+                        "read": float(row["readability_B"]),
+                    },
+                    "C": {
+                        "acc": float(row["accuracy_C"]),
+                        "accp": float(row["acceptability_C"]),
+                        "read": float(row["readability_C"]),
+                    },
+                    "D": {
+                        "acc": float(row["accuracy_D"]),
+                        "accp": float(row["acceptability_D"]),
+                        "read": float(row["readability_D"]),
+                    },
+                }
             except (ValueError, TypeError):
                 print(
                     f"Warning: Missing or malformed data at pair_id {pid}. Skipping row.",
@@ -172,51 +189,49 @@ def main():
                 )
                 continue
 
-            tqa_A = calculate_tqa(acc_A, accp_A, read_A)
-            tqa_B = calculate_tqa(acc_B, accp_B, read_B)
+            tqas: dict[str, float] = {}
+            for col, tx in mapping.items():
+                tqas[tx] = tqa = calculate_tqa(
+                    scores[col]["acc"],
+                    scores[col]["accp"],
+                    scores[col]["read"],
+                )
+                data_store[tx]["accuracy"].append(scores[col]["acc"])
+                data_store[tx]["acceptability"].append(scores[col]["accp"])
+                data_store[tx]["readability"].append(scores[col]["read"])
+                data_store[tx]["weighted_tqa"].append(tqa)
 
-            a_is_baseline = mapping["translation_A"] == "baseline"
-
-            if a_is_baseline:
-                data_store["baseline"]["accuracy"].append(acc_A)
-                data_store["baseline"]["acceptability"].append(accp_A)
-                data_store["baseline"]["readability"].append(read_A)
-                data_store["baseline"]["weighted_tqa"].append(tqa_A)
-
-                data_store["ce"]["accuracy"].append(acc_B)
-                data_store["ce"]["acceptability"].append(accp_B)
-                data_store["ce"]["readability"].append(read_B)
-                data_store["ce"]["weighted_tqa"].append(tqa_B)
-            else:
-                data_store["ce"]["accuracy"].append(acc_A)
-                data_store["ce"]["acceptability"].append(accp_A)
-                data_store["ce"]["readability"].append(read_A)
-                data_store["ce"]["weighted_tqa"].append(tqa_A)
-
-                data_store["baseline"]["accuracy"].append(acc_B)
-                data_store["baseline"]["acceptability"].append(accp_B)
-                data_store["baseline"]["readability"].append(read_B)
-                data_store["baseline"]["weighted_tqa"].append(tqa_B)
+            col_for = {tx: col for col, tx in mapping.items()}
+            T1 = col_for["T1"]
+            T2 = col_for["T2"]
+            T3 = col_for["T3"]
+            T4 = col_for["T4"]
 
             unscrambled_rows.append(
                 UnscrambledRow(
-                    text_id=mapping["text_id"],
+                    text_id=key_mapping[pid]["text_id"],
                     source_text=row["source_text"],
                     target_idiom=row["target_idiom"],
-                    baseline_translation=row["translation_A"]
-                    if a_is_baseline
-                    else row["translation_B"],
-                    ce_translation=row["translation_B"]
-                    if a_is_baseline
-                    else row["translation_A"],
-                    baseline_accuracy=data_store["baseline"]["accuracy"][-1],
-                    baseline_acceptability=data_store["baseline"]["acceptability"][-1],
-                    baseline_readability=data_store["baseline"]["readability"][-1],
-                    baseline_weighted_tqa=data_store["baseline"]["weighted_tqa"][-1],
-                    ce_accuracy=data_store["ce"]["accuracy"][-1],
-                    ce_acceptability=data_store["ce"]["acceptability"][-1],
-                    ce_readability=data_store["ce"]["readability"][-1],
-                    ce_weighted_tqa=data_store["ce"]["weighted_tqa"][-1],
+                    T1_translation=row[f"translation_{T1}"],
+                    T2_translation=row[f"translation_{T2}"],
+                    T3_translation=row[f"translation_{T3}"],
+                    T4_translation=row[f"translation_{T4}"],
+                    T1_accuracy=scores[T1]["acc"],
+                    T1_acceptability=scores[T1]["accp"],
+                    T1_readability=scores[T1]["read"],
+                    T1_weighted_tqa=tqas[T1],
+                    T2_accuracy=scores[T2]["acc"],
+                    T2_acceptability=scores[T2]["accp"],
+                    T2_readability=scores[T2]["read"],
+                    T2_weighted_tqa=tqas[T2],
+                    T3_accuracy=scores[T3]["acc"],
+                    T3_acceptability=scores[T3]["accp"],
+                    T3_readability=scores[T3]["read"],
+                    T3_weighted_tqa=tqas[T3],
+                    T4_accuracy=scores[T4]["acc"],
+                    T4_acceptability=scores[T4]["accp"],
+                    T4_readability=scores[T4]["read"],
+                    T4_weighted_tqa=tqas[T4],
                 )
             )
 
@@ -224,17 +239,28 @@ def main():
         "text_id",
         "source_text",
         "target_idiom",
-        "baseline_translation",
-        "ce_translation",
-        "baseline_accuracy",
-        "baseline_acceptability",
-        "baseline_readability",
-        "baseline_weighted_tqa",
-        "ce_accuracy",
-        "ce_acceptability",
-        "ce_readability",
-        "ce_weighted_tqa",
+        "T1_translation",
+        "T2_translation",
+        "T3_translation",
+        "T4_translation",
+        "T1_accuracy",
+        "T1_acceptability",
+        "T1_readability",
+        "T1_weighted_tqa",
+        "T2_accuracy",
+        "T2_acceptability",
+        "T2_readability",
+        "T2_weighted_tqa",
+        "T3_accuracy",
+        "T3_acceptability",
+        "T3_readability",
+        "T3_weighted_tqa",
+        "T4_accuracy",
+        "T4_acceptability",
+        "T4_readability",
+        "T4_weighted_tqa",
     ]
+
     with open(args.out, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=unscrambled_headers)
         writer.writeheader()
@@ -242,7 +268,7 @@ def main():
 
     for m in METRICS:
         save_stat_report(
-            f"wilcoxon_results_{m}.txt",
+            f"anova_results_{m}.txt",
             m.upper(),
             data_store["baseline"][m],
             data_store["ce"][m],
@@ -251,7 +277,7 @@ def main():
     print(
         "Analysis finished.\n"
         + f"- Unscrambled results saved to: {args.out}\n"
-        + "- Statistical breakdown saved into matching 'wilcoxon_results_*.txt' assets."
+        + "- Statistical breakdown saved into matching 'anova_results_*.txt' assets."
     )
 
 
