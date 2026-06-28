@@ -651,7 +651,7 @@ async def main():
                 LOGGER.info("Experiment interrupted by user.")
                 return
 
-    if ARGS.save_output:
+    if ARGS.save_output and not ARGS.generate_hints:
         LOGGER.info(
             "Experiment complete. Results saved to %s.",
             ", ".join([str(i) for i in output_files]),
