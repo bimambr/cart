@@ -452,14 +452,15 @@ class FileProcessor:
         self.id: int = id
         self.input_file: Path = input_file
         self.output_file: Path = output_file
-
-        self.log_file: TextIOWrapper | None = None
-
         self.client: aiohttp.ClientSession = client
         self.embedder: Embedder = embedder
 
+        self.log_file: TextIOWrapper | None = None
+        self.hints_file: Path = Path("hints") / self.input_file.name
+        self.hints: list[list[IdiomMatchResult]] | None = None
+
     def open(self) -> None:
-        if not ARGS.save_output:
+        if not ARGS.save_output or ARGS.generate_hints:
             return
 
         self.output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -493,8 +494,45 @@ class FileProcessor:
             Corpus, json.loads(self.input_file.read_text("utf-8").strip())
         )
 
+        if ARGS.generate_hints:
+            await self._run_hints_generation_pass(input_json)
+            return
+
+        await self._run_translation_pass(input_json)
+
+    async def _run_hints_generation_pass(self, input_json: Corpus) -> None:
+        LOGGER.info("--- Running hints generation pass (1/2) ---")
+
+        self.embedder.load()
+
+        hints = []
+        texts = input_json["texts"]
+        for text_idx, text in enumerate(texts):
+            LOGGER.info("Generating hints for text %d/%d", text_idx + 1, len(texts))
+            LOGGER.info("Source text: %s", text["content"])
+            hints.append(await self.embedder.get_idiom_definitions(text["content"]))
+
+        self.hints_file.parent.mkdir(parents=True, exist_ok=True)
+        self.hints_file.write_text(json.dumps(hints, indent=4), encoding="utf-8")
+        LOGGER.info("Successfully cached hints to %s", self.hints_file)
+
+    async def _run_translation_pass(self, input_json: Corpus) -> None:
+        texts = input_json["texts"]
+
         if ARGS.treatment_level > 2:
-            self.embedder.load_vectors()
+            if self.hints_file.exists():
+                self.hints = json.loads(self.hints_file.read_text("utf-8"))
+                if len(self.hints) != len(texts):
+                    LOGGER.warning("Hints file size mismatch!")
+                    self.hints = None
+
+            if self.hints is None:
+                self.embedder.load()
+
+        LOGGER.info(
+            "--- Running translation pass %s ---",
+            "using cached hints (2/2) " * (self.hints is not None),
+        )
 
         for text_idx, text in enumerate(input_json["texts"]):
             LOGGER.info(
@@ -502,9 +540,16 @@ class FileProcessor:
                 text_idx + 1,
                 len(input_json["texts"]),
             )
+            LOGGER.info("Source text: %s", text["content"])
 
-            if ARGS.match_idioms_only:
-                LOGGER.info("Source text: %s", text["content"])
+            if ARGS.treatment_level > 2:
+                idiom_matches = (
+                    self.hints[text_idx]
+                    if self.hints
+                    else await self.embedder.get_idiom_definitions(text["content"])
+                )
+            else:
+                idiom_matches = []
 
             source_text: SourceTextEntry = {
                 "source_lang": input_json["source_lang"],
@@ -512,24 +557,12 @@ class FileProcessor:
                 "text": text["content"],
                 "type": input_json.get("type", "general"),
                 "id": text_idx + 1,
-                "idiom_matches": await self.embedder.get_idiom_definitions(
-                    text["content"]
-                )
-                if ARGS.treatment_level > 2
-                else [],
+                "idiom_matches": idiom_matches,
             }
 
             await self._process_text(source_text)
 
     async def _process_text(self, source_text: SourceTextEntry) -> None:
-        if ARGS.match_idioms_only:
-            if self.log_file:
-                _ = self.log_file.write(
-                    json.dumps(source_text, ensure_ascii=False, indent=4) + "\n"
-                )
-                self.log_file.flush()
-            return
-
         for i in range(ARGS.iterations):
             iteration_num = i + 1
             LOGGER.info(

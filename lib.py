@@ -89,7 +89,7 @@ class Embedder:
         self.phrase_embeddings: torch.Tensor | None = None
         self.embedder: SentenceTransformer | None = None
         self.reranker: CrossEncoder | None = None
-        self.nlp = spacy.load("en_core_web_sm")
+        self.nlp: Language | None = None
 
     @staticmethod
     def is_loaded(obj: "Embedder") -> TypeGuard[LoadedEmbedder]:
@@ -99,9 +99,10 @@ class Embedder:
             and obj.phrase_embeddings is not None
             and obj.embedder is not None
             and obj.reranker is not None
+            and obj.nlp is not None
         )
 
-    def load_vectors(self) -> None:
+    def load(self) -> None:
         if not os.path.exists(VECTORISED_DICTIONARY_PATH):
             return
 
@@ -118,6 +119,7 @@ class Embedder:
 
         self.embedder = SentenceTransformer(self.bi_model)
         self.reranker = CrossEncoder(self.rerank_model)
+        self.nlp = spacy.load("en_core_web_sm")
 
     async def get_idiom_definitions(self, excerpt: str) -> list[IdiomMatchResult]:
         if not Embedder.is_loaded(self):
@@ -533,12 +535,6 @@ def get_parsed_args() -> type[CLIArgs]:
         help="Generate idiom vectors",
     )
     _ = parser.add_argument(
-        "--match-idioms-only",
-        action="store_true",
-        default=False,
-        help="Only match idioms without translating",
-    )
-    _ = parser.add_argument(
         "--evaluator-temperature",
         type=float,
         default=0.0,
@@ -568,6 +564,12 @@ def get_parsed_args() -> type[CLIArgs]:
         default=3,
         type=int,
         help="The treatment level (1: direct prompting, 2: w/ system prompt, 3: idiom RAG & self-refine)",
+    )
+    _ = parser.add_argument(
+        "--generate-hints",
+        action="store_true",
+        default=False,
+        help="Generate hints for T3 and T4 (will be picked up automatically on the next translation run)",
     )
 
     parsed = parser.parse_args(namespace=CLIArgs)
@@ -600,5 +602,5 @@ def log_args(args: type[CLIArgs]):
     LOGGER.info("Cache prompt: %s", args.cache_prompt)
     LOGGER.info("Save output: %s", args.save_output)
     LOGGER.info("Generating vectors: %s", args.vectorise)
-    LOGGER.info("Match idioms only: %s", args.match_idioms_only)
+    LOGGER.info("Generating hints: %s", args.generate_hints)
     LOGGER.info("Treatment level: %s", args.treatment_level)

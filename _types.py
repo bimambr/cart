@@ -142,9 +142,9 @@ class CLIArgs:
     cache_prompt: bool
     save_output: bool
     vectorise: bool
-    match_idioms_only: bool
     verbose: bool
     treatment_level: int
+    generate_hints: bool
 
 
 class Rubric(TypedDict):
