@@ -144,7 +144,7 @@ class CLIArgs:
     vectorise: bool
     match_idioms_only: bool
     verbose: bool
-    optimisation_level: int
+    treatment_level: int
 
 
 class Rubric(TypedDict):

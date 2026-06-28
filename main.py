@@ -256,7 +256,7 @@ async def handle_baseline_state(state: State) -> None:
     LOGGER.info(
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
-    system_prompt = TRANSLATOR_SYSTEM_PROMPT if ARGS.optimisation_level > 1 else ""
+    system_prompt = TRANSLATOR_SYSTEM_PROMPT if ARGS.treatment_level > 1 else ""
     # baseline borrows optimiser init prompt with an empty context
     prompt = OPTIMISER_INIT_PROMPT.format(
         TARGET_LANG=state["source_text"]["target_lang"],
@@ -492,7 +492,7 @@ class FileProcessor:
             Corpus, json.loads(self.input_file.read_text("utf-8").strip())
         )
 
-        if ARGS.optimisation_level > 2:
+        if ARGS.treatment_level > 2:
             self.embedder.load_vectors()
 
         for text_idx, text in enumerate(input_json["texts"]):
@@ -514,7 +514,7 @@ class FileProcessor:
                 "idiom_matches": await self.embedder.get_idiom_definitions(
                     text["content"]
                 )
-                if ARGS.optimisation_level > 2
+                if ARGS.treatment_level > 2
                 else [],
             }
 
@@ -540,9 +540,7 @@ class FileProcessor:
             state = State(
                 iteration_id=iteration_num,
                 source_text=source_text,
-                next_state="optimisation"
-                if ARGS.optimisation_level > 2
-                else "baseline",
+                next_state="optimisation" if ARGS.treatment_level > 2 else "baseline",
                 max_attempt=ARGS.refinement_iterations,
                 attempt=0,
                 history=[],
@@ -578,9 +576,9 @@ async def main():
             root
             / (
                 "baseline_attempts"
-                if ARGS.optimisation_level == 1
+                if ARGS.treatment_level == 1
                 else "baseline_with_persona_attempts"
-                if ARGS.optimisation_level == 2
+                if ARGS.treatment_level == 2
                 else "evaluator_optimiser_attempts"
             )
             / f"{p.stem}_translated_{ARGS.model}_attempt.jsonl"

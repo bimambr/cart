@@ -563,15 +563,15 @@ def get_parsed_args() -> type[CLIArgs]:
         help="Set logging level to DEBUG",
     )
     _ = parser.add_argument(
-        "--optimisation-level",
-        "-O",
+        "--treatment-level",
+        "-T",
         default=3,
         type=int,
-        help="The optimisation level (1: direct prompting, 2: w/ system prompt, 3: idiom RAG & self-refine)",
+        help="The treatment level (1: direct prompting, 2: w/ system prompt, 3: idiom RAG & self-refine)",
     )
 
     parsed = parser.parse_args(namespace=CLIArgs)
-    parsed.optimisation_level = max(1, min(3, parsed.optimisation_level))
+    parsed.treatment_level = max(1, min(3, parsed.treatment_level))
     LOGGER.info("Verbose logging: %s", parsed.verbose)
     LOGGER.info("Using endpoint: %s", parsed.endpoint)
     LOGGER.info("Model: %s", parsed.model)
@@ -597,5 +597,5 @@ def get_parsed_args() -> type[CLIArgs]:
     LOGGER.info("Save output: %s", parsed.save_output)
     LOGGER.info("Generating vectors: %s", parsed.vectorise)
     LOGGER.info("Match idioms only: %s", parsed.match_idioms_only)
-    LOGGER.info("Optimisation level: %s", parsed.optimisation_level)
+    LOGGER.info("Treatment level: %s", parsed.treatment_level)
     return parsed
