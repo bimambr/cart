@@ -5,6 +5,7 @@
 *.pyc
 
 *_attempts/
+hints/
 wilcoxon_results_*
 blind_key.json
 /*.jsonl
