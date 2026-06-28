@@ -109,7 +109,7 @@ thinking ::= !<channel|>*
 
 
 OPTIMISER_INIT_PROMPT = """
-Translate the following text into {TARGET_LANG}. Only output the translation.
+Translate the following text into {TARGET_LANG}. Provide the translation text alone, without any introductory phrases, alternative options, or post-translation notes.
 
 Text:
 {SOURCE_TEXT}
@@ -119,7 +119,7 @@ Text:
 
 
 OPTIMISER_RETRY_PROMPT = """
-You are given grades on a 1–3 scale and feedback regarding your translation. Revise accordingly and output the complete revised translation.
+You are given grades on a 1–3 scale and feedback regarding your translation. Revise accordingly and provide the revised translation text alone, without any introductory phrases, alternative options, or post-translation notes.
 
 Feedback:
 {GRADES}
