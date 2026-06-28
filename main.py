@@ -41,6 +41,7 @@ from lib import (
     Embedder,
     get_next_available_path,
     get_parsed_args,
+    log_args,
     run_inference,
     signal_handler,
     wait,
@@ -561,6 +562,8 @@ class FileProcessor:
 
 
 async def main():
+    log_args(ARGS)
+
     LOGGER.info("Starting translation experiment...")
 
     embedder = Embedder(ARGS.embedding_model, ARGS.rerank_model)

@@ -572,30 +572,33 @@ def get_parsed_args() -> type[CLIArgs]:
 
     parsed = parser.parse_args(namespace=CLIArgs)
     parsed.treatment_level = max(1, min(3, parsed.treatment_level))
-    LOGGER.info("Verbose logging: %s", parsed.verbose)
-    LOGGER.info("Using endpoint: %s", parsed.endpoint)
-    LOGGER.info("Model: %s", parsed.model)
+    return parsed
+
+
+def log_args(args: type[CLIArgs]):
+    LOGGER.info("Verbose logging: %s", args.verbose)
+    LOGGER.info("Using endpoint: %s", args.endpoint)
+    LOGGER.info("Model: %s", args.model)
     LOGGER.info(
         "Optimiser init temperature: %f",
-        parsed.optimiser_init_temperature,
+        args.optimiser_init_temperature,
     )
     LOGGER.info(
         "Optimiser refinement temperature: %f",
-        parsed.optimiser_retry_temperature,
+        args.optimiser_retry_temperature,
     )
     LOGGER.info(
         "Evaluator temperature: %f",
-        parsed.evaluator_temperature,
+        args.evaluator_temperature,
     )
-    LOGGER.info("Embedding model: %s", parsed.embedding_model)
-    LOGGER.info("Rerank model: %s", parsed.rerank_model)
-    LOGGER.info("Iterations per seed: %d", parsed.iterations)
-    LOGGER.info("Refinement iterations: %d", parsed.refinement_iterations)
-    LOGGER.info("Input files: %s", parsed.input)
-    LOGGER.info("Timeout: %d seconds", parsed.timeout)
-    LOGGER.info("Cache prompt: %s", parsed.cache_prompt)
-    LOGGER.info("Save output: %s", parsed.save_output)
-    LOGGER.info("Generating vectors: %s", parsed.vectorise)
-    LOGGER.info("Match idioms only: %s", parsed.match_idioms_only)
-    LOGGER.info("Treatment level: %s", parsed.treatment_level)
-    return parsed
+    LOGGER.info("Embedding model: %s", args.embedding_model)
+    LOGGER.info("Rerank model: %s", args.rerank_model)
+    LOGGER.info("Iterations per seed: %d", args.iterations)
+    LOGGER.info("Refinement iterations: %d", args.refinement_iterations)
+    LOGGER.info("Input files: %s", args.input)
+    LOGGER.info("Timeout: %d seconds", args.timeout)
+    LOGGER.info("Cache prompt: %s", args.cache_prompt)
+    LOGGER.info("Save output: %s", args.save_output)
+    LOGGER.info("Generating vectors: %s", args.vectorise)
+    LOGGER.info("Match idioms only: %s", args.match_idioms_only)
+    LOGGER.info("Treatment level: %s", args.treatment_level)
