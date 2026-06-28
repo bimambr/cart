@@ -51,7 +51,7 @@ class Bail(Exception): ...
 
 
 ENDPOINT = "http://localhost:8127/v1/chat/completions"
-MODEL_NAME = "gemma-4-E2B-it-GGUF"
+MODEL_NAME = "gemma-4-E4B-it-qat-GGUF"
 EMBED_MODEL_NAME = "./MongoDB/mdbr-leaf-ir"
 RERANK_MODEL_NAME = "./mixedbread-ai/mxbai-rerank-base-v2"
 DEFAULT_N_ITERATIONS = 5

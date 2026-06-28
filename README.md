@@ -1,6 +1,6 @@
 # Context-Augmented Refinement for (LLM) Translation
 
-This repository contains the scripts and methodology for a thesis project analysing the quality of translations produced by a local Large Language Model (default: gemma-4-E2B).
+This repository contains the scripts and methodology for a thesis project analysing the quality of translations produced by a local Large Language Model (default: gemma-4-E4B).
 The framework uses RAG and an iterative workflow to generate, evaluate, and refine translations, providing a rich dataset for analysis.
 
 ## Workflow Graph
@@ -18,8 +18,9 @@ further grounded using RAG to dynamically inject contexts (e.g., idiom definitio
 - Python 3.11 or higher (Python 3.14 is untested as of writing).
 - Python package: `aiohttp` & `sentence-transformers`.
 - llama.cpp (llama-server).
-- LLM: A GGUF-compatible model. The experiments for the thesis were conducted using `unsloth/gemma-4-E2B-it-GGUF` (Q8_0 quant).
-- Embedding model: `all-MiniLM-L6-v2`
+- LLM: A GGUF-compatible model or an OpenAI-compatible API. The experiments for the thesis were conducted using `unsloth/gemma-4-E4B-it-qat-GGUF` (Q4_K_XL quant).
+- Embedding model: `MongoDB/mdbr-leaf-ir` (query encoding) & `Snowflake/snowflake-arctic-embed-m-v1.5` (document encoding)
+- Rerank model: `mixedbread-ai/mxbai-rerank-base-v2`
 - Memory:
   - At least 16GB RAM if running on CPU, or
   - 6GB VRAM (NVIDIA GPU recommended).
@@ -51,7 +52,7 @@ python311 -m pip install aiohttp sentence-transformers
 
 5. There are two options to get the model:
 
-  - Download the model directly: Download the [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF) model from Hugging Face and place it in the root directory of this project (we use specifically the Q8_0 quant).
+  - Download the model directly: Download the [unsloth/gemma-4-E4B-it-qat-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF) model from Hugging Face and place it in the root directory of this project (we use specifically the Q4_K_XL quant).
   - Or, install `just`, `aria2`, and `bash` for runner and model downloader:
 ```sh
 scoop install just aria2 git
@@ -124,9 +125,8 @@ But you can add more idioms inside `idiom_dict/cherrypicked.json` with the follo
 Run this to vectorise:
 
 ```sh
-# This assumes you have downloaded the embedding model, otherwise run:
-# python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('all-MiniLM-L6-v2'); model.save('./all-MiniLM-L6-v2')"; \
-python main.py --input ./ --embedding-model "./all-MiniLM-L6-v2" --vectorise
+# This assumes you have downloaded the embedding model
+python main.py --input ./ --embedding-model "./Snowflake/snowflake-arctic-embed-m-v1.5" --vectorise
 
 # Or using just:
 just vectorise
@@ -138,7 +138,7 @@ Open a terminal in the project's root directory and run the `llama-server`. This
 
 ```sh
 # Example command to run llama-server
-llama-server -m ./gemma-4-E2B-it.gguf --port 8127 -c 32768 -fa on --cache-ram 2048 --repeat-penalty 1.0 --min-p 0.01 --top-k 64 --top-p 0.95 --no-webui -ngl 99
+llama-server -m ./gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf --port 8127 -c 32768 -fa on --cache-ram 2048 --repeat-penalty 1.0 --min-p 0.01 --top-k 64 --top-p 0.95 --no-webui -ngl 99
 
 # Or using just:
 just serve
@@ -154,6 +154,15 @@ python main.py --input "corpus/grave-sight.json" --timeout 0 --iterations 1 --re
 
 # Or using just:
 just run
+```
+
+If your VRAM cannot fit the bi-encoder, reranker, and LLM at once, run it in 2-pass mode:
+```sh
+# First pass
+python main.py --input "corpus/grave-sight.json" --generate-hints
+
+# Second pass (executes T3 & T4 using cached hints)
+python main.py --input "corpus/grave-sight.json" --treatment-level 3 --timeout 0 --iterations 1 --refinement-iterations 3 --cache-prompt
 ```
 
 ## Output

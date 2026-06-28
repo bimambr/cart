@@ -1,7 +1,7 @@
 set shell := ["bash", "-c"]
 
-model_url := "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q8_0.gguf?download=true"
-model_file := "gemma-4-E2B-it-Q8_0.gguf"
+model_url := "https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF/resolve/main/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf?download=true"
+model_file := "gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf"
 corpus_embedder_file := "Snowflake/snowflake-arctic-embed-m-v1.5"
 query_embedder_file := "MongoDB/mdbr-leaf-ir"
 reranker_file := "mixedbread-ai/mxbai-rerank-base-v2"
@@ -51,8 +51,6 @@ run input_file="corpus/literature.json" *args:
     python main.py --input "{{input_file}}" --timeout 0 --iterations 1 --refinement-iterations 3 --cache-prompt {{args}}
 
 vectorise ef="" rf="":
-    @embedder="{{ef}}"; \
-    reranker="{{rf}}"
+    @embedder="{{ef}}";
     if [ -z "$embedder" ]; then embedder="{{corpus_embedder_file}}"; fi; \
-    if [ -z "$reranker" ]; then reranker="{{reranker_file}}"; fi; \
-    python main.py --input "./" --embedding-model "./$embedder" --rerank-model "./$reranker" --vectorise
+    python main.py --input "./" --embedding-model "./$embedder" --vectorise
