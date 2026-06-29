@@ -129,6 +129,7 @@ def run_anova(
         y_col="score",
         group_col="treatment",
         block_col="block",
+        block_id_col="block",
         melted=True,
         p_adjust="holm",
     )
