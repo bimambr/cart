@@ -19,7 +19,7 @@ import csv
 import json
 import sys
 from dataclasses import dataclass
-from typing import TypedDict, cast
+from typing import Literal, TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -76,11 +76,14 @@ def calculate_tqa(acc: float, accp: float, read: float) -> float:
     return ((acc * 3) + (accp * 2) + (read * 1)) / 6
 
 
-def run_anova(metric_name: str, stores: dict[str, dict[str, list[float]]]):
-    t1 = np.array(stores["t1"][metric_name])
-    t2 = np.array(stores["t2"][metric_name])
-    t3 = np.array(stores["t3"][metric_name])
-    t4 = np.array(stores["t4"][metric_name])
+def run_anova(
+    metric_name: Literal["accuracy", "acceptability", "readability", "weighted_tqa"],
+    stores: dict[str, Metrics],
+):
+    t1 = np.array(stores["T1"][metric_name])
+    t2 = np.array(stores["T2"][metric_name])
+    t3 = np.array(stores["T3"][metric_name])
+    t4 = np.array(stores["T4"][metric_name])
 
     n_blocks = len(t1)
 
@@ -267,12 +270,7 @@ def main():
         writer.writerows(unscrambled_rows)
 
     for m in METRICS:
-        save_stat_report(
-            f"anova_results_{m}.txt",
-            m.upper(),
-            data_store["baseline"][m],
-            data_store["ce"][m],
-        )
+        run_anova(m, data_store)
 
     print(
         "Analysis finished.\n"
