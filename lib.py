@@ -563,13 +563,13 @@ def get_parsed_args() -> type[CLIArgs]:
         "-T",
         default=3,
         type=int,
-        help="The treatment level (1: direct prompting, 2: w/ system prompt, 3: idiom RAG & self-refine)",
+        help="The treatment level (1: direct prompting [T1], 2: Non-RAG refinement stack [T2 & T4], 3: RAG refinement stack [T3 & T5])",
     )
     _ = parser.add_argument(
         "--generate-hints",
         action="store_true",
         default=False,
-        help="Generate hints for T3 and T4 (will be picked up automatically on the next translation run)",
+        help="Generate hints for T3-T5 (will be picked up automatically on the next translation run)",
     )
 
     parsed = parser.parse_args(namespace=CLIArgs)

@@ -19,17 +19,18 @@ import csv
 import json
 import sys
 from dataclasses import dataclass
-from typing import Literal, TypedDict, cast
+from typing import Literal, TypeAlias, TypedDict, cast
 
 import numpy as np
 import pandas as pd
 import scikit_posthocs as sp  # pyright: ignore[reportMissingTypeStubs]
-from scipy.stats import friedmanchisquare
+from scipy.stats import friedmanchisquare, wilcoxon
 
 from scrambler import KeyEntry
 
-TREATMENTS = ("T1", "T2", "T3", "T4")
+TREATMENTS = ("T1", "T2", "T3", "T4", "T5")
 METRICS = ("accuracy", "acceptability", "readability", "weighted_tqa")
+METRIC: TypeAlias = Literal["accuracy", "acceptability", "readability", "weighted_tqa"]
 
 
 @dataclass
@@ -54,6 +55,7 @@ class UnscrambledRow(TypedDict):
     T2_translation: str
     T3_translation: str
     T4_translation: str
+    T5_translation: str
     T1_accuracy: float
     T1_acceptability: float
     T1_readability: float
@@ -70,32 +72,56 @@ class UnscrambledRow(TypedDict):
     T4_acceptability: float
     T4_readability: float
     T4_weighted_tqa: float
+    T5_accuracy: float
+    T5_acceptability: float
+    T5_readability: float
+    T5_weighted_tqa: float
 
 
 def calculate_tqa(acc: float, accp: float, read: float) -> float:
     return ((acc * 3) + (accp * 2) + (read * 1)) / 6
 
 
+def run_factorial_wilcoxon(metric_name: METRIC, stores: dict[str, Metrics]):
+    t2 = np.array(stores["T2"][metric_name])
+    t3 = np.array(stores["T3"][metric_name])
+    t4 = np.array(stores["T4"][metric_name])
+    t5 = np.array(stores["T5"][metric_name])
+
+    _, p_rag = wilcoxon(t5 + t3, t4 + t2)
+    _, p_refine = wilcoxon(t5 + t4, t3 + t2)
+    _, p_interaction = wilcoxon(t5 - t4, t3 - t2)
+
+    with open(f"factorial_wilcoxon_{metric_name}.txt", "w", encoding="utf-8") as f:
+        # fmt: off
+        _ = f.write(f"=== Non-Parametric Factorial Analysis: {metric_name.upper()} ===\n\n")
+        _ = f.write(f"Main Effect (RAG) p-value    : {p_rag:.6f}\n")
+        _ = f.write(f"Main Effect (Refine) p-value : {p_refine:.6f}\n")
+        _ = f.write(f"Interaction Effect p-value   : {p_interaction:.6f}\n")
+
+
 def run_anova(
-    metric_name: Literal["accuracy", "acceptability", "readability", "weighted_tqa"],
+    metric_name: METRIC,
     stores: dict[str, Metrics],
 ):
     t1 = np.array(stores["T1"][metric_name])
     t2 = np.array(stores["T2"][metric_name])
     t3 = np.array(stores["T3"][metric_name])
     t4 = np.array(stores["T4"][metric_name])
+    t5 = np.array(stores["T5"][metric_name])
 
     n_blocks = len(t1)
 
-    stat, p_omnibus = friedmanchisquare(t1, t2, t3, t4)
+    stat, p_omnibus = friedmanchisquare(t1, t2, t3, t4, t5)
     df = pd.DataFrame(
         {
-            "score": np.concatenate([t1, t2, t3, t4]),
+            "score": np.concatenate([t1, t2, t3, t4, t5]),
             "treatment": ["T1_Base"] * n_blocks
-            + ["T2_Sys"] * n_blocks
-            + ["T3_RAG"] * n_blocks
-            + ["T4_Refine"] * n_blocks,
-            "block": list(range(n_blocks)) * 4,
+            + ["T2_-Ref-RAG"] * n_blocks
+            + ["T3_-Ref+RAG"] * n_blocks
+            + ["T4_+Ref-RAG"] * n_blocks
+            + ["T5_+Ref+RAG"] * n_blocks,
+            "block": list(range(n_blocks)) * 5,
         }
     )
     p_matrix = sp.posthoc_conover_friedman(  # pyright: ignore[reportUnknownMemberType]
@@ -110,15 +136,16 @@ def run_anova(
     with open(f"anova_results_{metric_name}.txt", "w", encoding="utf-8") as f:
         # fmt: off
         _ = f.write(f"=== Friedman ANOVA & Post-Hoc Report: {metric_name.upper()} ===\n\n")
-        _ = f.write(f"Sample Size (N Blocks)   : {n_blocks}\n")
-        _ = f.write(f"Friedman Chi-Square      : {stat:.4f}\n")
-        _ = f.write(f"Omnibus p-value          : {p_omnibus:.6f}\n\n")
+        _ = f.write(f"Sample Size (N Blocks) : {n_blocks}\n")
+        _ = f.write(f"Friedman Chi-Square    : {stat:.4f}\n")
+        _ = f.write(f"Omnibus p-value        : {p_omnibus:.6f}\n\n")
 
         _ = f.write("--- DESCRIPTIVE STATISTICS (Means) ---\n")
-        _ = f.write(f"T1 (Baseline Direct)     : {np.mean(t1):.4f}\n")
-        _ = f.write(f"T2 (System Prompt)       : {np.mean(t2):.4f}\n")
-        _ = f.write(f"T3 (System + RAG)        : {np.mean(t3):.4f}\n")
-        _ = f.write(f"T4 (System + RAG + Ref)  : {np.mean(t4):.4f}\n\n")
+        _ = f.write(f"T1 (Baseline Direct)   : {np.mean(t1):.4f}\n")
+        _ = f.write(f"T2 (-Ref -RAG)         : {np.mean(t2):.4f}\n")
+        _ = f.write(f"T3 (-Ref +RAG)         : {np.mean(t3):.4f}\n")
+        _ = f.write(f"T4 (+Ref -RAG)         : {np.mean(t4):.4f}\n\n")
+        _ = f.write(f"T5 (+Ref +RAG)         : {np.mean(t5):.4f}\n\n")
 
         _ = f.write("--- POST-HOC PAIRWISE CONOVER P-MATRICES (Holm-Adjusted) ---\n")
         _ = f.write(p_matrix.to_string())
@@ -184,8 +211,13 @@ def main():
                         "accp": float(row["acceptability_D"]),
                         "read": float(row["readability_D"]),
                     },
+                    "E": {
+                        "acc": float(row["accuracy_E"]),
+                        "accp": float(row["acceptability_E"]),
+                        "read": float(row["readability_E"]),
+                    },
                 }
-            except (ValueError, TypeError):
+            except (ValueError, KeyError, TypeError):
                 print(
                     f"Warning: Missing or malformed data at pair_id {pid}. Skipping row.",
                     file=sys.stderr,
@@ -209,6 +241,7 @@ def main():
             T2 = col_for["T2"]
             T3 = col_for["T3"]
             T4 = col_for["T4"]
+            T5 = col_for["T5"]
 
             unscrambled_rows.append(
                 UnscrambledRow(
@@ -219,6 +252,7 @@ def main():
                     T2_translation=row[f"translation_{T2}"],
                     T3_translation=row[f"translation_{T3}"],
                     T4_translation=row[f"translation_{T4}"],
+                    T5_translation=row[f"translation_{T5}"],
                     T1_accuracy=scores[T1]["acc"],
                     T1_acceptability=scores[T1]["accp"],
                     T1_readability=scores[T1]["read"],
@@ -235,6 +269,10 @@ def main():
                     T4_acceptability=scores[T4]["accp"],
                     T4_readability=scores[T4]["read"],
                     T4_weighted_tqa=tqas[T4],
+                    T5_accuracy=scores[T5]["acc"],
+                    T5_acceptability=scores[T5]["accp"],
+                    T5_readability=scores[T5]["read"],
+                    T5_weighted_tqa=tqas[T5],
                 )
             )
 
@@ -246,6 +284,7 @@ def main():
         "T2_translation",
         "T3_translation",
         "T4_translation",
+        "T5_translation",
         "T1_accuracy",
         "T1_acceptability",
         "T1_readability",
@@ -262,6 +301,10 @@ def main():
         "T4_acceptability",
         "T4_readability",
         "T4_weighted_tqa",
+        "T5_accuracy",
+        "T5_acceptability",
+        "T5_readability",
+        "T5_weighted_tqa",
     ]
 
     with open(args.out, "w", encoding="utf-8", newline="") as f:
@@ -271,11 +314,12 @@ def main():
 
     for m in METRICS:
         run_anova(m, data_store)
+        run_factorial_wilcoxon(m, data_store)
 
     print(
         "Analysis finished.\n"
         + f"- Unscrambled results saved to: {args.out}\n"
-        + "- Statistical breakdown saved into matching 'anova_results_*.txt' assets."
+        + "- Statistical breakdown saved into matching 'anova_results_*.txt' and 'factorial_wilcoxon_*' assets."
     )
 
 

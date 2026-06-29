@@ -257,8 +257,8 @@ async def handle_baseline_state(state: State) -> None:
     LOGGER.info(
         "Generating baseline translation for text %d", state["source_text"]["id"]
     )
-    system_prompt = TRANSLATOR_SYSTEM_PROMPT if ARGS.treatment_level > 1 else ""
-    # baseline borrows optimiser init prompt with an empty context
+    system_prompt = ""
+    # T1 borrows optimiser init prompt with an empty context
     prompt = OPTIMISER_INIT_PROMPT.format(
         TARGET_LANG=state["source_text"]["target_lang"],
         SOURCE_TEXT=state["source_text"]["text"],
@@ -275,8 +275,7 @@ async def handle_baseline_state(state: State) -> None:
         timeout=ARGS.timeout,
         cache_prompt=ARGS.cache_prompt,
         grammar=TRANSLATOR_GRAMMAR,
-        messages=([("system", system_prompt, "system")] if system_prompt else [])
-        + [("user", prompt, "user")],
+        messages=[("user", prompt, "user")],
     )
     state["history"].append(
         {
@@ -505,7 +504,7 @@ class FileProcessor:
 
         self.embedder.load()
 
-        hints = []
+        hints: list[list[IdiomMatchResult]] = []
         texts = input_json["texts"]
         for text_idx, text in enumerate(texts):
             LOGGER.info("Generating hints for text %d/%d", text_idx + 1, len(texts))
@@ -513,7 +512,7 @@ class FileProcessor:
             hints.append(await self.embedder.get_idiom_definitions(text["content"]))
 
         self.hints_file.parent.mkdir(parents=True, exist_ok=True)
-        self.hints_file.write_text(json.dumps(hints, indent=4), encoding="utf-8")
+        _ = self.hints_file.write_text(json.dumps(hints, indent=4), encoding="utf-8")
         LOGGER.info("Successfully cached hints to %s", self.hints_file)
 
     async def _run_translation_pass(self, input_json: Corpus) -> None:
@@ -521,8 +520,11 @@ class FileProcessor:
 
         if ARGS.treatment_level > 2:
             if self.hints_file.exists():
-                self.hints = json.loads(self.hints_file.read_text("utf-8"))
-                if len(self.hints) != len(texts):
+                self.hints = hints = cast(
+                    "list[list[IdiomMatchResult]]",
+                    json.loads(self.hints_file.read_text("utf-8")),
+                )
+                if len(hints) != len(texts):
                     LOGGER.warning("Hints file size mismatch!")
                     self.hints = None
 
@@ -574,7 +576,7 @@ class FileProcessor:
             state = State(
                 iteration_id=iteration_num,
                 source_text=source_text,
-                next_state="optimisation" if ARGS.treatment_level > 2 else "baseline",
+                next_state="optimisation" if ARGS.treatment_level > 1 else "baseline",
                 max_attempt=ARGS.refinement_iterations,
                 attempt=0,
                 history=[],
@@ -613,9 +615,9 @@ async def main():
             / (
                 "baseline_attempts"
                 if ARGS.treatment_level == 1
-                else "baseline_with_persona_attempts"
+                else "non_rag_refine_attempts"
                 if ARGS.treatment_level == 2
-                else "evaluator_optimiser_attempts"
+                else "rag_refine_attempts"
             )
             / f"{p.stem}_translated_{ARGS.model}_attempt.jsonl"
         )
