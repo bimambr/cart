@@ -145,7 +145,7 @@ def run_anova(
         _ = f.write(f"T1 (Baseline Direct)   : {np.mean(t1):.4f}\n")
         _ = f.write(f"T2 (-Ref -RAG)         : {np.mean(t2):.4f}\n")
         _ = f.write(f"T3 (-Ref +RAG)         : {np.mean(t3):.4f}\n")
-        _ = f.write(f"T4 (+Ref -RAG)         : {np.mean(t4):.4f}\n\n")
+        _ = f.write(f"T4 (+Ref -RAG)         : {np.mean(t4):.4f}\n")
         _ = f.write(f"T5 (+Ref +RAG)         : {np.mean(t5):.4f}\n\n")
 
         _ = f.write("--- POST-HOC PAIRWISE CONOVER P-MATRICES (Holm-Adjusted) ---\n")
