@@ -6,7 +6,8 @@
 
 *_attempts/
 hints/
-wilcoxon_results_*
+*_results_*
+factorial_*
 blind_key.json
 /*.jsonl
 /*.csv#
