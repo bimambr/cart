@@ -58,24 +58,36 @@ logging.basicConfig(level=logging.DEBUG if ARGS.verbose else logging.INFO)
 
 
 def format_idiom_knowledge(idioms: Sequence[IdiomMatchResult]) -> str:
-    nl = "\n"
     if not idioms:
         return ""
 
-    def format_senses(senses: list[str]) -> str:
-        return "\n".join([f"  {j}. {k} " for j, k in enumerate(senses, start=1)])
-
-    disclaimer = (
-        "=== POTENTIAL IDIOM SUGGESTIONS ===\n"
-        "The following are possible meanings of matched phrases. Use them only if they are consistent with the surrounding context."
-    )
-    entries = nl.join(
+    entries = "\n\n".join(
         [
-            f"- Phrase form: {i['idiom']}\n  Senses:\n{format_senses(i['senses'])}"
+            f"""Expression:
+{i["idiom"]}
+
+Possible intended meaning in context:
+{chr(10).join(f"- {s}" for s in i["senses"])}"""
             for i in idioms
         ]
     )
-    return f"\n{disclaimer}\n\n{entries}\n===================================="
+
+    return f"""
+=== IDIOM INTERPRETATION NOTES ===
+
+The following expressions were automatically detected and may contain false positives.
+
+Before translating:
+- Check whether each expression is actually idiomatic in this context.
+- If an expression is idiomatic, preserve its intended meaning and effect.
+- Prefer natural target-language expressions that preserve the source meaning, tone, and literary effect.
+- Avoid literal renderings of idiomatic expressions when they would distort the intended meaning.
+- Choose the most appropriate translation strategy for natural literary expression in the target language.
+
+{entries}
+
+==================================
+"""
 
 
 def format_context(state: State) -> str:
@@ -99,42 +111,60 @@ TRANSLATOR_SYSTEM_PROMPT = """
 You are an expert literary translator specialising in dynamic equivalence. 
 
 Your goal is to convey the psychological subtext, tone, and idiomatic impact of the source text so that it reads as an original work in the target language. Avoid literal translations, syntactic calques, and word-for-word substitutions of idioms.
+
+Only provide the translation.
 """.strip()
 
 
-TRANSLATOR_GRAMMAR = """
-root     ::= <|channel> "thought" thinking <channel|> "Translation: " .*
-thinking ::= !<channel|>*
-"""
-
-
-OPTIMISER_INIT_PROMPT = """
+OPTIMISER_INIT_PROMPT = (
+    """
 Translate the following text into {TARGET_LANG}. Provide the translation text alone, without any introductory phrases, alternative options, or post-translation notes.
 
 Text:
 {SOURCE_TEXT}
 
 {CONTEXT}
+
+Translation:
 """.strip()
+    + " \n"
+)
 
 
-OPTIMISER_RETRY_PROMPT = """
-You are given grades on a 1–3 scale and feedback regarding your translation. Revise accordingly and provide the revised translation text alone, without any introductory phrases, alternative options, or post-translation notes.
+OPTIMISER_RETRY_PROMPT = (
+    """
+You are given grades on a 1–3 scale and feedback regarding your translation.
+
+Revise the translation according to the feedback, but use your own judgement. Do not mechanically apply suggestions if they reduce naturalness or literary quality.
 
 Feedback:
 {GRADES}
+
+Translation:
 """.strip()
+    + " \n"
+)
 
 
 EVALUATOR_SYSTEM_PROMPT = """
-You are a strict translation evaluator.
+You are a strict literary translation evaluator.
 
 Evaluate based on these strict definitions:
-- accuracy: Is the psychological and contextual meaning preserved? (Penalty if a figurative phrase is translated literally, altering its implied meaning).
-- acceptability: Does the translation sound like natural prose written native-to-native, or does it sound like "translationese" (English syntax/idioms masquerading as target language words)?
-- readability: Flow, rhythm, and coherence.
+- accuracy: Is the source meaning, emotional force, figurative intent, and contextual implication preserved? Penalise inappropriate literal rendering or unnecessary flattening of figurative language.
+- acceptability: Would a native literary translator plausibly write this phrasing? Penalise translationese, calques, unnatural collocations, and word-for-word renderings that are understandable but not idiomatic.
+- readability: Does the translation have natural flow, rhythm, and coherence while preserving the author's voice?
 
 Each aspect uses an ordinal scale of 1 to 3 (the greater the better).
+
+Be critical. Do not assume the translation is good merely because it is understandable.
+
+Look for subtle losses in:
+- inappropriate literalness or over-literal preservation of source imagery
+- unnatural attempts to preserve metaphors that do not carry the same effect in the target language
+- natural idiomatic expression in the target language
+- emotional intensity
+- literary register
+- character voice
 """.strip()
 
 
@@ -274,7 +304,6 @@ async def handle_baseline_state(state: State) -> None:
         seed,
         timeout=ARGS.timeout,
         cache_prompt=ARGS.cache_prompt,
-        grammar=TRANSLATOR_GRAMMAR,
         messages=[("user", prompt, "user")],
     )
     state["history"].append(
@@ -352,7 +381,6 @@ async def handle_optimisation_state(state: State) -> None:
         temp,
         seed,
         timeout=ARGS.timeout,
-        grammar=TRANSLATOR_GRAMMAR,
         cache_prompt=ARGS.cache_prompt,
         messages=messages,
     )
