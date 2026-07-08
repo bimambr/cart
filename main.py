@@ -546,7 +546,7 @@ class FileProcessor:
     async def _run_translation_pass(self, input_json: Corpus) -> None:
         texts = input_json["texts"]
 
-        if ARGS.treatment_level > 2:
+        if ARGS.treatment_level > 1:
             if self.hints_file.exists():
                 self.hints = hints = cast(
                     "list[list[IdiomMatchResult]]",
@@ -572,7 +572,7 @@ class FileProcessor:
             )
             LOGGER.info("Source text: %s", text["content"])
 
-            if ARGS.treatment_level > 2:
+            if ARGS.treatment_level > 1:
                 idiom_matches = (
                     self.hints[text_idx]
                     if self.hints
@@ -604,7 +604,7 @@ class FileProcessor:
             state = State(
                 iteration_id=iteration_num,
                 source_text=source_text,
-                next_state="optimisation" if ARGS.treatment_level > 1 else "baseline",
+                next_state="optimisation" if ARGS.treatment_level > 0 else "baseline",
                 max_attempt=ARGS.refinement_iterations,
                 attempt=0,
                 history=[],
@@ -642,9 +642,9 @@ async def main():
             root
             / (
                 "baseline_attempts"
-                if ARGS.treatment_level == 1
+                if ARGS.treatment_level == 0
                 else "non_rag_refine_attempts"
-                if ARGS.treatment_level == 2
+                if ARGS.treatment_level == 1
                 else "rag_refine_attempts"
             )
             / f"{p.stem}_translated_{ARGS.model}_attempt.jsonl"

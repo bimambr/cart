@@ -40,21 +40,17 @@ class ScrambledRow(TypedDict):
     translation_B: str
     translation_C: str
     translation_D: str
-    translation_E: str
 
 
 class KeyEntry(TypedDict):
     text_id: int
-    mapping: dict[
-        Literal["A", "B", "C", "D", "E"], Literal["T1", "T2", "T3", "T4", "T5"]
-    ]
+    mapping: dict[Literal["A", "B", "C", "D"], Literal["T1", "T2", "T3", "T4"]]
 
 
 @dataclass
 class _CLIArgs:
-    T1: str
+    T13: str
     T24: str
-    T35: str
     idioms: str
     out_csv: str
     out_key: str
@@ -104,19 +100,15 @@ def load_jsonl_translations(filepath: str, grab_last: bool = False) -> dict[int,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Scramble baseline and CE translations for blind ABX testing."
+        description="Scramble the conditioned translations for blind ABX testing."
     )
     _ = parser.add_argument(
-        "T1",
-        help="Path to T1.jsonl (baseline)",
+        "T13",
+        help="Path to T13.jsonl (non-RAG refinement stack)",
     )
     _ = parser.add_argument(
         "T24",
-        help="Path to T24.jsonl (non-RAG refinement stack)",
-    )
-    _ = parser.add_argument(
-        "T35",
-        help="Path to T35.jsonl (RAG refinement stack)",
+        help="Path to T24.jsonl (RAG refinement stack)",
     )
     _ = parser.add_argument(
         "idioms",
@@ -141,18 +133,15 @@ def main():
     )
     args = parser.parse_args(namespace=_CLIArgs)
 
-    t1_map = load_jsonl_translations(args.T1)
+    # T1 & T3 and T2 & T4 are generated sequentially
+    # T1 == T13[0] and T3 == T13[-1]
+    # T2 == T24[0] and T4 == T24[-1]
+    t1_map = load_jsonl_translations(args.T13)
+    t3_map = load_jsonl_translations(args.T13, grab_last=True)
     t2_map = load_jsonl_translations(args.T24)
     t4_map = load_jsonl_translations(args.T24, grab_last=True)
-    # T2 & T4 and T3 & T5 are generated sequentially
-    # T2 == T24[0] and T4 == T24[-1]
-    # T3 == T35[0] and T5 == T35[-1]
-    t3_map = load_jsonl_translations(args.T35)
-    t5_map = load_jsonl_translations(args.T35, grab_last=True)
 
-    common_ids = sorted(
-        list(set(t1_map.keys()) & set(t2_map.keys()) & set(t3_map.keys()))
-    )
+    common_ids = sorted(list(set(t1_map.keys()) & set(t2_map.keys())))
     if not common_ids:
         print("Error: No matching text IDs found between files.", file=sys.stderr)
         sys.exit(1)
@@ -170,7 +159,6 @@ def main():
             "T2": t2_map[text_id]["translation"],
             "T3": t3_map[text_id]["translation"],
             "T4": t4_map[text_id]["translation"],
-            "T5": t5_map[text_id]["translation"],
         }
 
         lowered = t1_map[text_id]["source_text"].lower()
@@ -181,10 +169,10 @@ def main():
             continue
 
         for idiom in detected_idioms:
-            labels = ["T1", "T2", "T3", "T4", "T5"]
+            labels = ["T1", "T2", "T3", "T4"]
             random.shuffle(labels)
             row_mapping = {
-                col: label for col, label in zip(["A", "B", "C", "D", "E"], labels)
+                col: label for col, label in zip(["A", "B", "C", "D"], labels)
             }
             scrambled_rows.append(
                 ScrambledRow(
@@ -195,7 +183,6 @@ def main():
                     translation_B=items[row_mapping["B"]],
                     translation_C=items[row_mapping["C"]],
                     translation_D=items[row_mapping["D"]],
-                    translation_E=items[row_mapping["E"]],
                 )
             )
             key_mapping[str(pair_counter)] = {
@@ -214,7 +201,6 @@ def main():
         "translation_B",
         "translation_C",
         "translation_D",
-        "translation_E",
         "accuracy_A",
         "acceptability_A",
         "readability_A",
@@ -227,9 +213,6 @@ def main():
         "accuracy_D",
         "acceptability_D",
         "readability_D",
-        "accuracy_E",
-        "acceptability_E",
-        "readability_E",
     ]
 
     if (
@@ -257,9 +240,6 @@ def main():
                     "accuracy_D": "",
                     "acceptability_D": "",
                     "readability_D": "",
-                    "accuracy_E": "",
-                    "acceptability_E": "",
-                    "readability_E": "",
                 }
             )
 
