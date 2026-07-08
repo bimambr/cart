@@ -19,10 +19,11 @@ import csv
 import json
 import sys
 from dataclasses import dataclass
+from io import TextIOWrapper
 from typing import Literal, TypeAlias, TypedDict, cast
 
 import numpy as np
-from scipy.stats import wilcoxon
+from scipy.stats import rankdata, wilcoxon
 
 from scrambler import KeyEntry
 
@@ -75,22 +76,70 @@ def calculate_tqa(acc: float, accp: float, read: float) -> float:
     return ((acc * 3) + (accp * 2) + (read * 1)) / 6
 
 
-def run_factorial_wilcoxon(metric_name: METRIC, stores: dict[str, Metrics]):
-    t1 = np.array(stores["T1"][metric_name])
-    t2 = np.array(stores["T2"][metric_name])
-    t3 = np.array(stores["T3"][metric_name])
-    t4 = np.array(stores["T4"][metric_name])
+def log_factorial_component(
+    f: TextIOWrapper,
+    contrast_label: str,
+    arr_a: np.ndarray,
+    arr_b: np.ndarray,
+    label_a: str,
+    label_b: str,
+):
+    mean_a, median_a = np.mean(arr_a), cast(float, np.median(arr_a))
+    mean_b, median_b = np.mean(arr_b), cast(float, np.median(arr_b))
 
-    _, p_rag = wilcoxon(t4 + t2, t3 + t1)
-    _, p_refine = wilcoxon(t4 + t3, t2 + t1)
-    _, p_interaction = wilcoxon(t4 - t3, t2 - t1)
+    diffs = arr_a - arr_b
+    nonzero = diffs[diffs != 0]
 
-    with open(f"factorial_wilcoxon_{metric_name}.txt", "w", encoding="utf-8") as f:
+    n_total = len(diffs)
+    n_pos = np.sum(diffs > 0)
+    n_neg = np.sum(diffs < 0)
+    n_active = len(nonzero)
+    n_zero = n_total - n_active
+    median_diff = cast(float, np.median(diffs))
+
+    W_plus, W_minus, stat, p_val, rank_biserial = np.nan, np.nan, np.nan, 1.0, np.nan
+
+    if nonzero.size > 0:
+        try:
+            res = wilcoxon(arr_a, arr_b)
+            stat, p_val = res.statistic, res.pvalue
+            ranks = rankdata(np.abs(nonzero))
+            W_plus = np.sum(ranks[nonzero > 0])
+            W_minus = np.sum(ranks[nonzero < 0])
+            rank_biserial = (W_plus - W_minus) / (W_plus + W_minus)
+        except ValueError:
+            pass
+
+    # fmt: off
+    _ = f.write(f"--- {contrast_label.upper()} ANALYSIS ---\n")
+    _ = f.write(f"{(label_a + ' (Mean / Median)'):<32} : {mean_a:.4f} / {median_a:.4f}\n")
+    _ = f.write(f"{(label_b + ' (Mean / Median)'):<32} : {mean_b:.4f} / {median_b:.4f}\n")
+    _ = f.write(f"Median of Differences            : {median_diff:.4f}\n")
+    _ = f.write(f"Sample Breakdowns (N/Act/Zero)   : {n_total} / {n_active} / {n_zero}\n")
+    _ = f.write(f"Directional Shifts (Pos / Neg)   : {n_pos} / {n_neg}\n")
+    _ = f.write(f"W+ / W- / Test Stat              : {W_plus} / {W_minus} / {stat}\n")
+    _ = f.write(f"p-value                          : {p_val:.6f}\n")
+    _ = f.write(f"Rank-Biserial Effect Size (r)    : {rank_biserial:.4f}\n\n")
+
+
+def run_factorial_wilcoxon(metric_name: str, stores: dict[str, Metrics]):
+    t1 = np.array(stores["T1"][metric_name], dtype=np.float64)
+    t2 = np.array(stores["T2"][metric_name], dtype=np.float64)
+    t3 = np.array(stores["T3"][metric_name], dtype=np.float64)
+    t4 = np.array(stores["T4"][metric_name], dtype=np.float64)
+
+    rag_a, rag_b = (t4 + t2), (t3 + t1)
+    refine_a, refine_b = (t4 + t3), (t2 + t1)
+    inter_a, inter_b = (t4 - t3), (t2 - t1)
+
+    filename = f"factorial_wilcoxon_{metric_name}.txt"
+    with open(filename, "w", encoding="utf-8") as f:
         # fmt: off
-        _ = f.write(f"=== Non-Parametric Factorial Analysis: {metric_name.upper()} ===\n\n")
-        _ = f.write(f"Main Effect (RAG) p-value    : {p_rag:.6f}\n")
-        _ = f.write(f"Main Effect (Refine) p-value : {p_refine:.6f}\n")
-        _ = f.write(f"Interaction Effect p-value   : {p_interaction:.6f}\n")
+        _ = f.write(f"=== Non-Parametric Planned Contrasts: {metric_name.upper()} ===\n\n")
+
+        log_factorial_component(f, "Main Effect (RAG)", rag_a, rag_b, "RAG+", "RAG-")
+        log_factorial_component(f, "Main Effect (Self-Refine)", refine_a, refine_b, "Refine+", "Refine-")
+        log_factorial_component(f, "Interaction Effect", inter_a, inter_b, "RAG with Refine+", "RAG with Refine-")
 
 
 def main():
