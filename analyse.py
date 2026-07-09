@@ -76,6 +76,16 @@ def calculate_tqa(acc: float, accp: float, read: float) -> float:
     return ((acc * 3) + (accp * 2) + (read * 1)) / 6
 
 
+def log_ordinal_frequencies(f: TextIOWrapper, name: str, arr: np.ndarray) -> None:
+    values, counts = np.unique(arr.astype(int), return_counts=True)
+
+    _ = f.write(f"{name} Frequencies\n")
+    for value, count in zip(values, counts):  # pyright: ignore[reportAny]
+        pct = 100 * cast(int, count) / arr.size
+        _ = f.write(f"  {value}: {count:3d} ({pct:5.1f}%)\n")
+    _ = f.write("\n")
+
+
 def log_factorial_component(
     f: TextIOWrapper,
     contrast_label: str,
@@ -132,11 +142,17 @@ def run_factorial_wilcoxon(metric_name: str, stores: dict[str, Metrics]):
     refine_a, refine_b = (t4 + t3), (t2 + t1)
     inter_a, inter_b = (t4 - t3), (t2 - t1)
 
-    filename = f"factorial_wilcoxon_{metric_name}.txt"
-    with open(filename, "w", encoding="utf-8") as f:
+    with open(f"factorial_wilcoxon_{metric_name}.txt", "w", encoding="utf-8") as f:
         # fmt: off
-        _ = f.write(f"=== Non-Parametric Planned Contrasts: {metric_name.upper()} ===\n\n")
 
+        if metric_name.lower() != "weighted_tqa":
+            _ = f.write(f"=== Descriptive Statistics: {metric_name.upper()} ===\n\n")
+            log_ordinal_frequencies(f, "T1 (RAG-, Refine-)", t1)
+            log_ordinal_frequencies(f, "T2 (RAG+, Refine-)", t2)
+            log_ordinal_frequencies(f, "T3 (RAG-, Refine+)", t3)
+            log_ordinal_frequencies(f, "T4 (RAG+, Refine+)", t4)
+
+        _ = f.write(f"=== Non-Parametric Planned Contrasts: {metric_name.upper()} ===\n\n")
         log_factorial_component(f, "Main Effect (RAG)", rag_a, rag_b, "RAG+", "RAG-")
         log_factorial_component(f, "Main Effect (Self-Refine)", refine_a, refine_b, "Refine+", "Refine-")
         log_factorial_component(f, "Interaction Effect", inter_a, inter_b, "RAG with Refine+", "RAG with Refine-")
