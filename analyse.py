@@ -138,8 +138,8 @@ def run_factorial_wilcoxon(metric_name: str, stores: dict[str, Metrics]):
     t3 = np.array(stores["T3"][metric_name], dtype=np.float64)
     t4 = np.array(stores["T4"][metric_name], dtype=np.float64)
 
-    rag_a, rag_b = (t4 + t2) / 2, (t3 + t1) / 2
-    refine_a, refine_b = (t4 + t3) / 2, (t2 + t1) / 2
+    rag_a, rag_b = (t4 + t2), (t3 + t1)
+    refine_a, refine_b = (t4 + t3), (t2 + t1)
     inter_a, inter_b = (t4 - t3), (t2 - t1)
 
     with open(f"factorial_wilcoxon_{metric_name}.txt", "w", encoding="utf-8") as f:
