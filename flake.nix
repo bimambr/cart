@@ -39,6 +39,20 @@
             pkgs.just
             pkgs.aria2
             pkgs.tmux
+
+            (pkgs.rWrapper.override {
+              packages = with pkgs.rPackages; [
+                lme4
+                lmerTest
+                ordinal
+                emmeans
+                moments
+
+                styler
+                lintr
+                languageserver
+              ];
+            })
           ];
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [

@@ -16,6 +16,10 @@ blind_key.json
 # `nix develop --profile ./.nix`
 .nix*
 
+# R
+tmp/
+Rplots.pdf
+
 # RAG
 mixedbread-ai/
 all-MiniLM-L6-v2/
