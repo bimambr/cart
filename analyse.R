@@ -1,174 +1,130 @@
-suppressPackageStartupMessages({
-  library(lme4)
-  library(lmerTest)
-  library(ordinal)
-  library(emmeans)
-  library(moments)
-})
+library(brms)
+library(emmeans)
+library(bayestestR)
+library(tidybayes)
+library(performance)
+library(ggplot2)
+library(loo)
 
 df <- read.csv("translations_long.csv")
 
-df$accuracy <- factor(
-  df$accuracy,
-  ordered = TRUE, levels = c(1, 2, 3)
+tqa_table <- aggregate(
+  with(df, (3 * accuracy + 2 * acceptability + readability) / 6),
+  by = list(treatment = df$treatment),
+  FUN = mean
 )
-df$acceptability <- factor(
-  df$acceptability,
-  ordered = TRUE, levels = c(1, 2, 3)
-)
-df$readability <- factor(
-  df$readability,
-  ordered = TRUE, levels = c(1, 2, 3)
-)
+cat("TQA (Weighted Average) Summary:\n")
+print(tqa_table)
+
+for (col in c("accuracy", "acceptability", "readability")) {
+  df[[col]] <- factor(df[[col]], ordered = TRUE, levels = c(1, 2, 3))
+}
 
 df$rag_status <- as.factor(df$rag_status)
 df$refine_status <- as.factor(df$refine_status)
 df$idiom_id <- as.factor(df$idiom_id)
 
-# Set baselines
 df$rag_status <- relevel(df$rag_status, ref = "RAG-")
 df$refine_status <- relevel(df$refine_status, ref = "Refine-")
 
-maybe_run_clmm_posthoc <- function(model) {
-  ct <- coef(summary(model))
+evaluate_bayes_clmm <- function(response_var, data) {
+  cat("\n======================================================\n")
+  cat(sprintf(
+    "ANALYSING: %s (Bayesian Cumulative Logit)\n",
+    toupper(response_var)
+  ))
+  cat("======================================================\n")
 
-  interaction_row <- grep(":", rownames(ct))
-
-  if (length(interaction_row) == 0) {
-    cat("No interaction term found.\n")
-    return(invisible(NULL))
-  }
-
-  p <- ct[interaction_row, "Pr(>|z|)"]
-
-  if (p < 0.05) {
-    cat(
-      sprintf(
-        "Interaction significant (p = %.4f).",
-        p
-      ),
-      "Running pairwise comparisons...\n"
-    )
-
-    print(emmeans(model, pairwise ~ rag_status * refine_status))
-  } else {
-    cat(
-      sprintf(
-        "Interaction not significant (p = %.4f).",
-        p
-      ),
-      "Pairwise comparisons skipped."
-    )
-  }
-}
-
-section <- local({
-  i <- 0
-  function(title) {
-    i <<- i + 1
-    cat(
-      "======================================================\n",
-      sprintf("%d. %s\n", i, title),
-      "======================================================\n\n",
-      sep = ""
-    )
-  }
-})
-
-spacer <- function(n = 1) {
-  cat(strrep("\n", n))
-}
-
-section("CLMM: ACCURACY")
-print(nominal_test(clm(
-  accuracy ~ rag_status * refine_status,
-  data = df
-)))
-spacer()
-model_accu <- clmm(
-  accuracy ~ rag_status * refine_status + (1 | idiom_id),
-  data = df,
-  nAGQ = 10
-)
-print(summary(model_accu))
-spacer()
-maybe_run_clmm_posthoc(model_accu)
-
-spacer(2)
-section("CLMM: ACCEPTABILITY")
-print(nominal_test(clm(
-  acceptability ~ rag_status * refine_status,
-  data = df
-)))
-spacer()
-model_acce <- clmm(
-  acceptability ~ rag_status * refine_status + (1 | idiom_id),
-  data = df,
-  nAGQ = 10
-)
-print(summary(model_acce))
-spacer()
-maybe_run_clmm_posthoc(model_acce)
-
-spacer(2)
-section("CLMM: READABILITY")
-print(nominal_test(clm(
-  readability ~ rag_status * refine_status,
-  data = df
-)))
-spacer()
-model_read <- clmm(
-  readability ~ rag_status * refine_status + (1 | idiom_id),
-  data = df,
-  nAGQ = 10
-)
-print(summary(model_read))
-spacer()
-maybe_run_clmm_posthoc(model_read)
-
-spacer(2)
-section("LMM: WEIGHTED TQA COMPOSITE (ANOVA)")
-model_tqa <- lmer(
-  weighted_tqa ~ rag_status * refine_status + (1 | idiom_id),
-  data = df
-)
-
-res <- resid(model_tqa)
-qqnorm(resid(model_tqa))
-qqline(resid(model_tqa), col = "red")
-skew_val <- skewness(res)
-cat("Residual Skewness:", round(skew_val, 3), "\n")
-spacer()
-plot(model_tqa)
-
-anova_results <- anova(model_tqa)
-print(anova_results)
-spacer()
-
-interaction_p <- anova_results["rag_status:refine_status", "Pr(>F)"]
-
-if (!is.na(interaction_p) && interaction_p < 0.05) {
-  cat(
-    sprintf(
-      "Interaction significant (p = %.4f).",
-      interaction_p
+  model_specs <- list(
+    PO = list(
+      formula = paste(
+        response_var,
+        "~ rag_status * refine_status + (1 | idiom_id)"
+      )
     ),
-    "Running pairwise comparisons...\n"
+    NPO = list(
+      formula = paste(
+        response_var,
+        "~ cs(rag_status * refine_status) + (1 | idiom_id)"
+      )
+    )
   )
 
-  interaction_analysis <- emmeans(
-    model_tqa,
-    pairwise ~ rag_status * refine_status,
-    lmer.df = "satterthwaite"
-  )
+  models <- list()
 
-  print(summary(interaction_analysis))
-} else {
-  cat(
-    sprintf(
-      "Interaction not significant (p = %.4f).",
-      interaction_p
-    ),
-    "Pairwise comparisons skipped."
-  )
+  for (model_name in names(model_specs)) {
+    cat("\n---------------------------------\n")
+    cat("Fitting", model_name, "model\n")
+    cat("---------------------------------\n")
+
+    models[[model_name]] <- brm(
+      formula = as.formula(model_specs[[model_name]]$formula),
+      data = data,
+      family = cumulative(link = "logit"),
+      prior = set_prior("normal(0, 1)", class = "b"),
+      cores = 4,
+      chains = 4,
+      iter = 4000,
+      warmup = 2000,
+      seed = 123,
+      control = list(adapt_delta = 0.95),
+      save_pars = save_pars(all = TRUE)
+    )
+
+    print(summary(models[[model_name]]))
+    print(
+      pp_check(models[[model_name]],
+        type = "bars",
+        ndraws = 100
+      ) +
+        ggtitle(sprintf(
+          "%s model: %s",
+          model_name,
+          toupper(response_var)
+        ))
+    )
+    print(describe_posterior(models[[model_name]]))
+
+    cat("\n--- Posterior Contrasts (", model_name, ") ---\n", sep = "")
+    em <- emmeans(
+      models[[model_name]],
+      ~ rag_status * refine_status,
+      mode = "latent"
+    )
+    contrasts <- pairs(em)
+    print(contrasts)
+    print(describe_posterior(
+      contrasts,
+      rope_range = rope_range(models[[model_name]])
+    ))
+  }
+
+  cat("\n=====================================\n")
+  cat("LOO MODEL COMPARISON\n")
+  cat("=====================================\n")
+
+  loo_list <- lapply(models, loo, cores = 4)
+
+  for (nm in names(loo_list)) {
+    cat("\nLOO summary:", nm, "\n")
+    print(loo_list[[nm]])
+  }
+  cat("\n")
+
+  pareto_tables <- lapply(loo_list, pareto_k_table)
+  comparisons <- loo_compare(loo_list)
+  print(comparisons)
+
+  summary(warnings())
+
+  invisible(list(
+    models = models,
+    loo = loo_list,
+    comparison = comparisons,
+    pareto_k = pareto_tables
+  ))
 }
+
+acc_res <- evaluate_bayes_clmm("accuracy", df)
+accpt_res <- evaluate_bayes_clmm("acceptability", df)
+read_res <- evaluate_bayes_clmm("readability", df)

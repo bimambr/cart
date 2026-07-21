@@ -42,11 +42,13 @@
 
             (pkgs.rWrapper.override {
               packages = with pkgs.rPackages; [
-                lme4
-                lmerTest
-                ordinal
+                brms
+                tidybayes
+                bayestestR
                 emmeans
-                moments
+                performance
+                ggplot2
+                loo
 
                 styler
                 lintr
