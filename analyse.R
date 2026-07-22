@@ -71,7 +71,6 @@ evaluate_bayes_clmm <- function(response_var, data) {
       save_pars = save_pars(all = TRUE)
     )
 
-    print(summary(models[[model_name]]))
     print(
       pp_check(models[[model_name]],
         type = "bars",
@@ -83,7 +82,12 @@ evaluate_bayes_clmm <- function(response_var, data) {
           toupper(response_var)
         ))
     )
-    print(describe_posterior(models[[model_name]]))
+    print(describe_posterior(
+      models[[model_name]],
+      ci = 0.89,
+      ci_method = "hdi",
+      rope_ci = 1.0
+    ))
 
     cat("\n--- Posterior Contrasts (", model_name, ") ---\n", sep = "")
     em <- emmeans(
@@ -92,10 +96,12 @@ evaluate_bayes_clmm <- function(response_var, data) {
       mode = "latent"
     )
     contrasts <- pairs(em)
-    print(contrasts)
     print(describe_posterior(
       contrasts,
-      rope_range = rope_range(models[[model_name]])
+      rope_range = rope_range(models[[model_name]]),
+      ci = 0.89,
+      ci_method = "hdi",
+      rope_ci = 1.0
     ))
   }
 
@@ -114,8 +120,6 @@ evaluate_bayes_clmm <- function(response_var, data) {
   pareto_tables <- lapply(loo_list, pareto_k_table)
   comparisons <- loo_compare(loo_list)
   print(comparisons)
-
-  summary(warnings())
 
   invisible(list(
     models = models,
