@@ -16,11 +16,11 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
 import csv
-from dataclasses import dataclass
 import json
 import os
 import random
 import sys
+from dataclasses import dataclass
 from typing import Literal, TypedDict, cast
 
 from _types import State, TranslationAttempt
@@ -55,6 +55,8 @@ class _CLIArgs:
     out_csv: str
     out_key: str
     override: bool
+    include: str
+    exclude: str
 
 
 def load_jsonl_translations(filepath: str, grab_last: bool = False) -> dict[int, Entry]:
@@ -62,7 +64,7 @@ def load_jsonl_translations(filepath: str, grab_last: bool = False) -> dict[int,
     decoder = json.JSONDecoder()
     buffer = ""
 
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         for line in f:
             buffer += line
             buffer = buffer.lstrip()
@@ -83,13 +85,9 @@ def load_jsonl_translations(filepath: str, grab_last: bool = False) -> dict[int,
 
                 history = state.get("history", [])
                 attempts = [
-                    cast(TranslationAttempt, h)
-                    for h in history
-                    if h.get("type") == "attempt"
+                    cast(TranslationAttempt, h) for h in history if h.get("type") == "attempt"
                 ]
-                translation = (attempts or [{}])[-1 if grab_last else 0].get(
-                    "translation"
-                ) or "N/A"
+                translation = (attempts or [{}])[-1 if grab_last else 0].get("translation") or "N/A"
                 data[text_id] = {
                     "text_id": text_id,
                     "source_text": source_entry.get("text", ""),
@@ -131,6 +129,16 @@ def main():
         default=False,
         help="Override existing files",
     )
+    _ = parser.add_argument(
+        "--include",
+        default="",
+        help="Comma-separated list of idiom IDs (pair_ids) to include",
+    )
+    _ = parser.add_argument(
+        "--exclude",
+        default="",
+        help="Comma-separated list of idiom IDs (pair_ids) to exclude",
+    )
     args = parser.parse_args(namespace=_CLIArgs)
 
     # T1 & T3 and T2 & T4 are generated sequentially
@@ -146,9 +154,11 @@ def main():
         print("Error: No matching text IDs found between files.", file=sys.stderr)
         sys.exit(1)
 
-    with open(args.idioms, "r") as f:
+    with open(args.idioms) as f:
         idioms: list[str] = cast("list[str]", json.load(f))
 
+    include_ids = set(int(x.strip()) for x in args.include.split(",") if x.strip())
+    exclude_ids = set(int(x.strip()) for x in args.exclude.split(",") if x.strip())
     scrambled_rows: list[ScrambledRow] = []
     key_mapping = {}
     pair_counter = 1
@@ -169,14 +179,20 @@ def main():
             continue
 
         for idiom in detected_idioms:
+            current_id = pair_counter
+            pair_counter += 1
+
+            if include_ids and current_id not in include_ids:
+                continue
+            if exclude_ids and current_id in exclude_ids:
+                continue
+
             labels = ["T1", "T2", "T3", "T4"]
             random.shuffle(labels)
-            row_mapping = {
-                col: label for col, label in zip(["A", "B", "C", "D"], labels)
-            }
+            row_mapping = {col: label for col, label in zip(["A", "B", "C", "D"], labels)}
             scrambled_rows.append(
                 ScrambledRow(
-                    pair_id=pair_counter,
+                    pair_id=current_id,
                     target_idiom=idiom,
                     source_text=t1_map[text_id]["source_text"],
                     translation_A=items[row_mapping["A"]],
@@ -185,11 +201,10 @@ def main():
                     translation_D=items[row_mapping["D"]],
                 )
             )
-            key_mapping[str(pair_counter)] = {
+            key_mapping[str(current_id)] = {
                 "text_id": text_id,
                 "mapping": row_mapping,
             }
-            pair_counter += 1
 
     random.shuffle(scrambled_rows)
 
@@ -216,9 +231,7 @@ def main():
         "note",
     ]
 
-    if (
-        os.path.exists(args.out_csv) or os.path.exists(args.out_key)
-    ) and not args.override:
+    if (os.path.exists(args.out_csv) or os.path.exists(args.out_key)) and not args.override:
         print("Error: file conflicts. Use `-y` to override.", file=sys.stderr)
         sys.exit(1)
 
