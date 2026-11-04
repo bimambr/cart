@@ -48,6 +48,7 @@
                 performance
                 ggplot2
                 loo
+                irrCAC
 
                 styler
                 lintr
