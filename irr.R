@@ -55,18 +55,55 @@ cat(sprintf(
 cat("\n========================================\n")
 cat(sprintf(" INTER-RATER RELIABILITY (GWET'S AC2: %d RATERS)\n", num_raters))
 cat("========================================\n")
-cat("Using quadratic weights for 1-3 ordinal scale.\n\n")
+cat("Using quadratic weights for 1-3 ordinal scale.\n")
+cat("Applying Cluster Bootstrap (B=1000) by idiom_id to correct SE for repeated measures.\n\n")
+
+B <- 1000
+unique_ids <- unique(merged_df$idiom_id)
+set.seed(42)
 
 for (metric in metrics) {
   cat(sprintf("--- %s ---\n", toupper(metric)))
 
   rater_cols <- paste0(metric, "_R", 1:num_raters)
   rating_data <- merged_df[, rater_cols, drop = FALSE]
-  ac2_res <- gwet.ac1.raw(rating_data, weights = "quadratic")
+  orig_ac2_res <- gwet.ac1.raw(rating_data,
+    weights = "quadratic",
+    categ.labels = 1:3
+  )
+  orig_ac2 <- orig_ac2_res$est$coeff.val
 
-  cat(sprintf("AC2 Coefficient: %.3f\n", ac2_res$est$coeff.val))
-  cat(sprintf("Standard Error:  %.3f\n", ac2_res$est$coeff.se))
-  cat(sprintf("p-value:         %.3f\n\n", ac2_res$est$p.value))
+  boot_ac2 <- numeric(B)
+
+  for (b in 1:B) {
+    boot_ids <- sample(unique_ids, replace = TRUE)
+    boot_list <- lapply(boot_ids, function(id) {
+      merged_df[merged_df$idiom_id == id, rater_cols, drop = FALSE]
+    })
+    boot_df <- do.call(rbind, boot_list)
+    boot_val <- tryCatch(
+      {
+        gwet.ac1.raw(boot_df,
+          weights = "quadratic",
+          categ.labels = 1:3
+        )$est$coeff.val
+      },
+      error = function(e) NA
+    )
+    boot_ac2[b] <- boot_val
+  }
+
+  boot_ac2_clean <- na.omit(boot_ac2)
+  boot_se <- sd(boot_ac2_clean)
+  boot_ci <- quantile(boot_ac2_clean, probs = c(0.025, 0.975))
+
+  z_stat <- orig_ac2 / boot_se
+  p_val <- 2 * (1 - pnorm(abs(z_stat)))
+
+  cat(sprintf("Original AC2:    %.3f\n", orig_ac2))
+  cat(sprintf("Bootstrap SE:    %.3f\n", boot_se))
+  cat(sprintf("95%% CI:          [%.3f, %.3f]\n", boot_ci[1], boot_ci[2]))
+  cat(sprintf("Boot p-value:    %.3f\n\n", p_val))
 }
 
 cat("\n========================================\n")
