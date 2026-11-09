@@ -48,9 +48,18 @@ if (nrow(merged_df) == 0) {
 }
 
 cat(sprintf(
-  "\nSuccessfully merged %d raters across %d matched translation instances.\n",
+  "\nSuccessfully merged %d raters across %d matched translation instances.\n\n",
   num_raters, nrow(merged_df)
 ))
+
+for (m in metrics) {
+  a <- merged_df[[paste0(m, "_R1")]]
+  b <- merged_df[[paste0(m, "_R2")]]
+  cat(sprintf(
+    "%s: exact = %.0f%%, 2-point disagreements = %d of %d\n",
+    m, 100 * mean(a == b), sum(abs(a - b) == 2), length(a)
+  ))
+}
 
 cat("\n========================================\n")
 cat(sprintf(" INTER-RATER RELIABILITY (GWET'S AC2: %d RATERS)\n", num_raters))
