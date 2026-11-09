@@ -97,13 +97,9 @@ for (metric in metrics) {
   boot_se <- sd(boot_ac2_clean)
   boot_ci <- quantile(boot_ac2_clean, probs = c(0.025, 0.975))
 
-  z_stat <- orig_ac2 / boot_se
-  p_val <- 2 * (1 - pnorm(abs(z_stat)))
-
   cat(sprintf("Original AC2:    %.3f\n", orig_ac2))
   cat(sprintf("Bootstrap SE:    %.3f\n", boot_se))
   cat(sprintf("95%% CI:          [%.3f, %.3f]\n", boot_ci[1], boot_ci[2]))
-  cat(sprintf("Boot p-value:    %.3f\n\n", p_val))
 }
 
 cat("\n========================================\n")
