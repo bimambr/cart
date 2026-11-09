@@ -103,42 +103,44 @@ for (metric in metrics) {
 }
 
 cat("\n========================================\n")
-cat(" OVERALL TQA SUMMARY & FREQUENCIES (Pooled Raters)\n")
+cat(" INDIVIDUAL RATER TQA SUMMARY\n")
 cat("========================================\n")
 
-pooled_df <- do.call(rbind, raw_dfs)
+individual_results <- data.frame()
 
-tqa_table <- aggregate(
-  cbind(accuracy, acceptability, readability) ~ treatment,
-  data = pooled_df,
-  FUN = function(x) round(mean(as.numeric(x), na.rm = TRUE), 2)
-)
-
-tqa_table$Weighted_Average <- round((
-  3 * tqa_table$accuracy +
-    2 * tqa_table$acceptability +
-    1 * tqa_table$readability
-) / 6, 2)
-
-colnames(tqa_table) <- c(
-  "Treatment",
-  "Accuracy Mean",
-  "Acceptability Mean",
-  "Readability Mean",
-  "Weighted Average"
-)
-
-cat("TQA (Weighted Average) Summary:\n")
-print(tqa_table)
-
-for (col in metrics) {
-  pooled_df[[col]] <- factor(pooled_df[[col]],
-    ordered = TRUE, levels = c(1, 2, 3)
+for (i in seq_along(raw_dfs)) {
+  rater_df <- raw_dfs[[i]]
+  rater_df <- merge(
+    rater_df,
+    unique(merged_df[, c("idiom_id", "treatment")]),
+    by = c("idiom_id", "treatment")
   )
+  rater_summary <- aggregate(
+    cbind(accuracy, acceptability, readability) ~ treatment,
+    data = rater_df,
+    FUN = function(x) round(mean(as.numeric(x), na.rm = TRUE), 2)
+  )
+  rater_summary$Weighted_Average <- round((
+    3 * rater_summary$accuracy +
+      2 * rater_summary$acceptability +
+      1 * rater_summary$readability
+  ) / 6, 2)
+  rater_summary$Rater <- paste("Rater", i)
+  colnames(rater_summary) <- c(
+    "Treatment",
+    "Accuracy Mean",
+    "Acceptability Mean",
+    "Readability Mean",
+    "Weighted Average",
+    "Rater"
+  )
+  individual_results <- rbind(
+    individual_results,
+    rater_summary
+  )
+}
 
-  cat(sprintf("\n--- %s Frequencies ---\n", toupper(col)))
-  freq_table <- table(pooled_df$treatment, pooled_df[[col]])
-  freq_df <- as.data.frame.matrix(freq_table)
+print(individual_results)
 
   for (score in as.character(1:3)) {
     if (!score %in% colnames(freq_df)) {
