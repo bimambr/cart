@@ -142,13 +142,5 @@ for (i in seq_along(raw_dfs)) {
 
 print(individual_results)
 
-  for (score in as.character(1:3)) {
-    if (!score %in% colnames(freq_df)) {
-      freq_df[[score]] <- 0
-    }
   }
-  freq_df <- freq_df[, as.character(1:3)]
-  colnames(freq_df) <- paste("Score", colnames(freq_df))
-
-  print(freq_df)
 }
