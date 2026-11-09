@@ -151,5 +151,24 @@ for (i in seq_along(raw_dfs)) {
 
 print(individual_results)
 
+cat("\n")
+contrast_pairs <- list(c("T2", "T1"), c("T4", "T3"))
+key <- paste(merged_df$idiom_id, merged_df$treatment)
+for (i in seq_along(raw_dfs)) {
+  d <- raw_dfs[[i]]
+  d <- d[paste(d$idiom_id, d$treatment) %in% key, ]
+  w <- reshape(d[, c("idiom_id", "treatment", "accuracy")],
+    idvar = "idiom_id", timevar = "treatment", direction = "wide"
+  )
+  for (cp in contrast_pairs) {
+    # accuracy only; the main analysis found
+    # credible RAG-only effect on accuracy alone.
+    diff <- w[[paste0("accuracy.", cp[1])]] - w[[paste0("accuracy.", cp[2])]]
+    cat(sprintf(
+      "Rater %d | %s - %s | mean diff = %.2f | up = %d, tie = %d, down = %d\n",
+      i, cp[1], cp[2], mean(diff, na.rm = TRUE),
+      sum(diff > 0, na.rm = TRUE), sum(diff == 0, na.rm = TRUE),
+      sum(diff < 0, na.rm = TRUE)
+    ))
   }
 }
